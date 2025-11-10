@@ -15,6 +15,10 @@
     "rocksdb": {
         "path": "./data"
     },
+    "lyncs": {
+        "numSlot": 8,
+        "maxInSlot": 128
+    },
     "testnet": false,
     "debug": 2
 }

@@ -13,6 +13,7 @@ type StartupConfig struct {
     Hysteresis int `json:"hysteresis"`
     DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
     TickReserved []string `json:"tickReserved"`
+    Lyncs LyncsConfig `json:"lyncs"`
 }
 type CassaConfig struct {
     Host string `json:"host"`
@@ -25,16 +26,21 @@ type CassaConfig struct {
 type RocksConfig struct {
     Path string `json:"path"`
 }
+type LyncsConfig struct {
+    NumSlot int `json:"numSlot"`
+    MaxInSlot int `json:"maxInSlot"`
+}
 type Config struct {
     Startup StartupConfig `json:"startup"`
     Cassandra CassaConfig `json:"cassandra"`
     Rocksdb RocksConfig `json:"rocksdb"`
+    Lyncs LyncsConfig `json:"lyncs"`
     Debug int `json:"debug"`
     Testnet bool `json:"testnet"`
 }
 
 ////////////////////////////////
-const Version = "2.03.250415"
+const Version = "3.01.251102"
 
 ////////////////////////////////
 func Load(cfg *Config) {
@@ -52,4 +58,5 @@ func Load(cfg *Config) {
     if err != nil {
         log.Fatalln("config.Load fatal:", err.Error())
     }
+    cfg.Startup.Lyncs = cfg.Lyncs
 }

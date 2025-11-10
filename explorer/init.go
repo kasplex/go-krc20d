@@ -49,9 +49,9 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
     if (!testnet || len(eRuntime.cfg.DaaScoreRange) <= 0) {
         eRuntime.cfg.DaaScoreRange = daaScoreRange
     }
-    if (testnet && len(eRuntime.cfg.TickReserved) > 0) {
+    /*if (testnet && len(eRuntime.cfg.TickReserved) > 0) {
         operation.ApplyTickReserved(eRuntime.cfg.TickReserved)
-    }
+    }*/
     eRuntime.rollbackList, err = storage.GetRuntimeRollbackLast()
     if err != nil {
         log.Fatalln("explorer.Init fatal:", err.Error())
@@ -73,6 +73,11 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
         slog.Info("explorer.Init", "lastVspcDaaScore", eRuntime.cfg.DaaScoreRange[0][0], "lastVspcBlockHash", "")
         storage.SetRuntimeSynced(false, eRuntime.opScoreLast, eRuntime.cfg.DaaScoreRange[0][0])
     }
+    stateContractMap := map[string]*storage.StateContractType{}
+    
+    // load system stcontract (KRC-20) ...
+    
+    operation.InitLyncs(eRuntime.cfg.Lyncs, stateContractMap)
     storage.SetRuntimeVersion(config.Version)
     slog.Info("explorer ready.")
 }

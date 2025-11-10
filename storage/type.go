@@ -22,7 +22,7 @@ type DataTransactionType struct {
 }
 
 ////////////////////////////////
-type DataScriptType struct {
+/*type DataScriptType struct {
     P string `json:"p"`
     Op string `json:"op"`
     From string `json:"from,omitempty"`
@@ -39,7 +39,7 @@ type DataScriptType struct {
     Name string `json:"name,omitempty"`
     Ca string `json:"ca,omitempty"`
     // ...
-}
+}*/
 
 ////////////////////////////////
 type DataOpStateType struct {
@@ -57,12 +57,15 @@ type DataOpStateType struct {
 type DataStatsType struct {
     TickAffc []string
     AddressAffc []string
+    
+    // TickAffcMap / AddressAffcMap ..
+    
     // XxxAffc ...
 }
 
 ////////////////////////////////
 type DataOperationType struct {
-    TxId string
+    /*TxId string
     DaaScore uint64
     BlockAccept string
     Fee uint64
@@ -71,8 +74,17 @@ type DataOperationType struct {
     OpScore uint64
     OpAccept int8
     OpError string
-    OpScript []*DataScriptType
-    ScriptSig string
+    OpScript []map[string][string]
+    ScriptSig string*/
+    
+    Block map[string]string
+    Tx map[string]string
+    TxInputs []map[string]string
+    TxOutputs []map[string]string
+    Op map[string]string
+    OpScript []map[string]string
+    OpKeyRules []map[string]string
+    
     StBefore []string
     StAfter []string
     Checkpoint string
@@ -144,16 +156,26 @@ type StateBlacklistType struct {
 }
 
 ////////////////////////////////
+type StateContractType struct {
+    Ca string `json:"ca,omitempty"`
+    Op string `json:"op,omitempty"`
+    Code []byte `json:"code,omitempty"`
+    Bc []byte `json:"bc,omitempty"`
+    OpMod uint64 `json:"opmod,omitempty"`
+}
+
+////////////////////////////////
 // type StateXxx ...
 
 ////////////////////////////////
-type DataStateMapType struct {
+/*type DataStateMapType struct {
     StateTokenMap map[string]*StateTokenType `json:"statetokenmap,omitempty"`
     StateBalanceMap map[string]*StateBalanceType `json:"statebalancemap,omitempty"`
     StateMarketMap map[string]*StateMarketType `json:"statemarketmap,omitempty"`
     StateBlacklistMap map[string]*StateBlacklistType `json:"stateblacklistmap,omitempty"`
     // StateXxx ...
-}
+}*/
+type DataStateMapType map[string]map[string]string
 
 ////////////////////////////////
 type DataRollbackType struct {

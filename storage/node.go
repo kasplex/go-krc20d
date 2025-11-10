@@ -7,7 +7,6 @@ import (
     "sort"
     "strconv"
     "strings"
-    //"log/slog"
     "encoding/json"
     "github.com/gocql/gocql"
     "kasplex-executor/protowire"
@@ -34,7 +33,10 @@ func GetNodeVspcList(daaScoreStart uint64, lenBlock int) ([]DataVspcType, int64,
             if err != nil {
                 return err
             }
-            txIdList := strings.Split(txId, ",")
+            txIdList := []string{}
+            if txId != "" {
+                txIdList = strings.Split(txId, ",")
+            }
             if daaScore < 110165000 {
                 sort.Strings(txIdList)
             }

@@ -6,8 +6,8 @@ import (
     "sync"
     "time"
     "strings"
-    //"log/slog"
-    "math/rand"
+    "strconv"
+    //"math/rand"
     "encoding/json"
     "github.com/gocql/gocql"
     "github.com/tecbot/gorocksdb"
@@ -17,14 +17,128 @@ import (
 const OpRangeBy = uint64(100000)
 
 ////////////////////////////////
-const KeyPrefixStateToken = "sttoken_"
-const KeyPrefixStateBalance = "stbalance_"
-const KeyPrefixStateMarket = "stmarket_"
-const KeyPrefixStateBlacklist = "stblacklist_"
+const KeyPrefixStateToken = "sttoken"
+const KeyPrefixStateBalance = "stbalance"
+const KeyPrefixStateMarket = "stmarket"
+const KeyPrefixStateBlacklist = "stblacklist"
+const KeyPrefixStateContract = "stcontract"
 // KeyPrefixStateXxx ...
 
+var KeyPrefixStateMap = map[string]bool{
+    KeyPrefixStateToken: true,
+    KeyPrefixStateBalance: true,
+    KeyPrefixStateMarket: true,
+    KeyPrefixStateBlacklist: true,
+    KeyPrefixStateContract: true,
+    // KeyPrefixStateXxx: true,
+}
+
 ////////////////////////////////
-func GetStateTokenMap(tokenMap map[string]*StateTokenType) (int64, error) {
+func GetStateBatch(stateMap DataStateMapType) (int64, error) {
+    lenState := len(stateMap)
+    keyList := make([]*string, 0, lenState)
+    for key := range stateMap {
+        keyList = append(keyList, &key)
+    }
+    mutex := new(sync.RWMutex)
+    mtsBatch, err := doGetBatchRocks(lenState, 0, func(iStart int, iEnd int, rdb *gorocksdb.TransactionDB, rro *gorocksdb.ReadOptions) (error) {
+        for i := iStart; i < iEnd; i ++ {
+            row, err := rdb.Get(rro, []byte(*keyList[i]))
+            if err != nil {
+                return err
+            }
+            dataByte := row.Data()
+            if dataByte == nil {
+                continue
+            }
+            decoded := make(map[string]string, 8)
+            err = json.Unmarshal(dataByte, &decoded)
+            if err != nil {  // compatible to v2
+                prefix := strings.SplitN(*keyList[i], "_", 2)[0]
+                if prefix == KeyPrefixStateToken {
+                    v2decoded := StateTokenType{}
+                    err = json.Unmarshal(dataByte, &v2decoded)
+                    if err == nil {
+                        decoded["tick"] = v2decoded.Tick
+                        decoded["max"] = v2decoded.Max
+                        decoded["lim"] = v2decoded.Lim
+                        decoded["pre"] = v2decoded.Pre
+                        decoded["dec"] = strconv.Itoa(v2decoded.Dec)
+                        decoded["mod"] = v2decoded.Mod
+                        decoded["from"] = v2decoded.From
+                        decoded["to"] = v2decoded.To
+                        decoded["minted"] = v2decoded.Minted
+                        decoded["burned"] = v2decoded.Burned
+                        decoded["name"] = v2decoded.Name
+                        decoded["txid"] = v2decoded.TxId
+                        decoded["opadd"] = strconv.FormatUint(v2decoded.OpAdd, 10)
+                        decoded["opmod"] = strconv.FormatUint(v2decoded.OpMod, 10)
+                        decoded["mtsadd"] = strconv.FormatInt(v2decoded.MtsAdd, 10)
+                        decoded["mtsmod"] = strconv.FormatInt(v2decoded.MtsMod, 10)
+                    }
+                } else if prefix == KeyPrefixStateBalance {
+                    v2decoded := StateBalanceType{}
+                    err = json.Unmarshal(dataByte, &v2decoded)
+                    if err == nil {
+                        decoded["address"] = v2decoded.Address
+                        decoded["tick"] = v2decoded.Tick
+                        decoded["dec"] = strconv.Itoa(v2decoded.Dec)
+                        decoded["balance"] = v2decoded.Balance
+                        decoded["locked"] = v2decoded.Locked
+                        decoded["opmod"] = strconv.FormatUint(v2decoded.OpMod, 10)
+                    }
+                } else if prefix == KeyPrefixStateMarket {
+                    v2decoded := StateMarketType{}
+                    err = json.Unmarshal(dataByte, &v2decoded)
+                    if err == nil {
+                        decoded["tick"] = v2decoded.Tick
+                        decoded["taddr"] = v2decoded.TAddr
+                        decoded["utxid"] = v2decoded.UTxId
+                        decoded["uaddr"] = v2decoded.UAddr
+                        decoded["uamt"] = v2decoded.UAmt
+                        decoded["uscript"] = v2decoded.UScript
+                        decoded["tamt"] = v2decoded.TAmt
+                        decoded["opadd"] = strconv.FormatUint(v2decoded.OpAdd, 10)
+                    }
+                } else if prefix == KeyPrefixStateBlacklist {
+                    v2decoded := StateBlacklistType{}
+                    err = json.Unmarshal(dataByte, &v2decoded)
+                    if err == nil {
+                        decoded["tick"] = v2decoded.Tick
+                        decoded["address"] = v2decoded.Address
+                        decoded["opadd"] = strconv.FormatUint(v2decoded.OpAdd, 10)
+                    }
+                } else if prefix == KeyPrefixStateContract {
+                    v2decoded := StateContractType{}
+                    err = json.Unmarshal(dataByte, &v2decoded)
+                    if err == nil {
+                        decoded["ca"] = v2decoded.Ca
+                        decoded["op"] = v2decoded.Op
+                        decoded["code"] = string(v2decoded.Code)
+                        decoded["bc"] = string(v2decoded.Bc)
+                        decoded["opmod"] = strconv.FormatUint(v2decoded.OpMod, 10)
+                    }
+                } else {
+                    return err
+                }
+                if err != nil {
+                    return err
+                }
+            }
+            mutex.Lock()
+            stateMap[*keyList[i]] = decoded
+            mutex.Unlock()
+        }
+        return nil
+    })
+    if err != nil {
+        return 0, err
+    }
+    return mtsBatch, nil
+}
+
+////////////////////////////////
+/*func GetStateTokenMap(tokenMap map[string]*StateTokenType) (int64, error) {
     keyList := [][]byte{}
     for tick := range tokenMap {
         keyList = append(keyList, []byte(KeyPrefixStateToken+tick))
@@ -161,53 +275,28 @@ func GetStateBlacklistMap(blacklistMap map[string]*StateBlacklistType) (int64, e
 
 ////////////////////////////////
 // GetStateXxx ...
+*/
 
 ////////////////////////////////
-func CopyDataStateMap(stateMapFrom DataStateMapType, stateMapTo *DataStateMapType) {
-    stateMapTo.StateTokenMap = make(map[string]*StateTokenType)
-    stateMapTo.StateBalanceMap = make(map[string]*StateBalanceType)
-    stateMapTo.StateMarketMap = make(map[string]*StateMarketType)
-    stateMapTo.StateBlacklistMap = make(map[string]*StateBlacklistType)
-    // stateMapTo.StateXxxMap ...
-    for key, stToken := range stateMapFrom.StateTokenMap {
-        if stToken == nil {
-            stateMapTo.StateTokenMap[key] = nil
+func CopyDataStateMap(stateMapFrom DataStateMapType) (DataStateMapType) {
+    stateMapTo := make(DataStateMapType, len(stateMapFrom))
+    for k1, v1 := range stateMapFrom {
+        if v1 == nil {
+            stateMapTo[k1] = nil
             continue
         }
-        stData := *stToken
-        stateMapTo.StateTokenMap[key] = &stData
-    }
-    for key, stBalance := range stateMapFrom.StateBalanceMap {
-        if stBalance == nil {
-            stateMapTo.StateBalanceMap[key] = nil
-            continue
+        stateMapTo[k1] = make(map[string]string, len(v1))
+        for k2, v2 := range v1 {
+            stateMapTo[k1][k2] = v2
         }
-        stData := *stBalance
-        stateMapTo.StateBalanceMap[key] = &stData
     }
-    for key, stMarket := range stateMapFrom.StateMarketMap {
-        if stMarket == nil {
-            stateMapTo.StateMarketMap[key] = nil
-            continue
-        }
-        stData := *stMarket
-        stateMapTo.StateMarketMap[key] = &stData
-    }
-    for key, stBlacklist := range stateMapFrom.StateBlacklistMap {
-        if stBlacklist == nil {
-            stateMapTo.StateBlacklistMap[key] = nil
-            continue
-        }
-        stData := *stBlacklist
-        stateMapTo.StateBlacklistMap[key] = &stData
-    }
-    // StateXxx ...
+    return stateMapTo
 }
 
 ////////////////////////////////
 func SaveStateBatchCassa(stateMap DataStateMapType) (int64, error) {
     mtss := time.Now().UnixMilli()
-    keyList := make([]string, 0, len(stateMap.StateTokenMap))
+    /*keyList := make([]string, 0, len(stateMap.StateTokenMap))
     for key := range stateMap.StateTokenMap {
         keyList = append(keyList, key)
     }
@@ -287,7 +376,7 @@ func SaveStateBatchCassa(stateMap DataStateMapType) (int64, error) {
     })
     if err != nil {
         return 0, err
-    }
+    }*/
     // StateXxx ...
     return time.Now().UnixMilli() - mtss, nil
 }
@@ -295,7 +384,7 @@ func SaveStateBatchCassa(stateMap DataStateMapType) (int64, error) {
 ////////////////////////////////
 func SaveOpDataBatchCassa(opDataList []DataOperationType) (int64, error) {
     mtss := time.Now().UnixMilli()
-    stateJsonMap := make(map[string]string, len(opDataList))
+    /*stateJsonMap := make(map[string]string, len(opDataList))
     scriptJsonMap := make(map[string]string, len(opDataList))
     _, err := startExecuteBatchCassa(len(opDataList), func(batch *gocql.Batch, i int) (error) {
         state := &DataOpStateType{
@@ -333,7 +422,7 @@ func SaveOpDataBatchCassa(opDataList []DataOperationType) (int64, error) {
     })
     if err != nil {
         return 0, err
-    }
+    }*/
     return time.Now().UnixMilli() - mtss, nil
 }
 
@@ -361,7 +450,7 @@ func DeleteOpDataBatchCassa(opScoreList []uint64, txIdList []string) (int64, err
 ////////////////////////////////
 func SaveStateBatchRocksBegin(stateMap DataStateMapType, txRocks *gorocksdb.Transaction) (*gorocksdb.Transaction, int64, error) {
     mtss := time.Now().UnixMilli()
-    if txRocks == nil {
+    /*if txRocks == nil {
         txRocks = sRuntime.rocksTx.TransactionBegin(sRuntime.wOptRocks, sRuntime.txOptRocks, nil)
     }
     var err error
@@ -417,7 +506,7 @@ func SaveStateBatchRocksBegin(stateMap DataStateMapType, txRocks *gorocksdb.Tran
             txRocks.Rollback()
             return txRocks, 0, err
         }
-    }
+    }*/
     // StateXxx ...
     return txRocks, time.Now().UnixMilli() - mtss, nil
 }

@@ -3,17 +3,18 @@
 package explorer
 
 import (
+    "fmt"
     "time"
     "sync"
     "strconv"
     "strings"
     "unicode"
-    //"log/slog"
+    "math/big"
     "encoding/hex"
     "encoding/json"
+    "github.com/kasplex/go-lyncs"
     "kasplex-executor/misc"
     "kasplex-executor/storage"
-    "kasplex-executor/operation"
 )
 
 ////////////////////////////////
@@ -267,96 +268,232 @@ func parseScriptInput(script string) (bool, []string) {
 
 ////////////////////////////////
 // Parse the OP data in transaction.
-func parseOpData(txData *storage.DataTransactionType) (*storage.DataOperationType, error) {
+func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType) {
     if (txData == nil || txData.Data == nil) {
-        return nil, nil
+        return nil
     }
     lenInput := len(txData.Data.Inputs)
     if lenInput <= 0 {
-        return nil, nil
+        return nil
     }
-    var opScript []*storage.DataScriptType
-    scriptSig := ""
+    //var opScript []*storage.DataScriptType
+    txInputs := make([]map[string]string, 0, len(txData.Data.Inputs))
+    txOutputs := make([]map[string]string, 0, len(txData.Data.Outputs))
+    for _, input := range txData.Data.Inputs {
+        txInputs = append(txInputs, map[string]string{
+            "prevTxId": input.PreviousOutpoint.TransactionId,
+            "prevIndex": strconv.FormatUint(uint64(input.PreviousOutpoint.Index),10),
+        })
+    }
+    for _, output := range txData.Data.Outputs {
+        txOutputs = append(txOutputs, map[string]string{
+            "amount": strconv.FormatUint(uint64(output.Amount),10),
+            "spk": output.ScriptPublicKey.ScriptPublicKey,
+            "type": output.VerboseData.ScriptPublicKeyType,
+            "address": output.VerboseData.ScriptPublicKeyAddress,
+        })
+    }
+    callList := make([]lyncs.DataCallFuncType, 0, 4)
     for i, input := range txData.Data.Inputs {
-        script := input.SignatureScript
-        isOp, scriptInfo := parseScriptInput(script)
+        scriptSig := ""
+        isOp, scriptInfo := parseScriptInput(input.SignatureScript)
         if (!isOp || scriptInfo[0] == "") {
             continue
         }
-        decoded := storage.DataScriptType{}
-        err := json.Unmarshal([]byte(scriptInfo[1]), &decoded)
+        decoded := make(map[string]string, 32)
+        decodedRaw := make(map[string]interface{}, 32)
+        err := json.Unmarshal([]byte(scriptInfo[1]), &decodedRaw)
         if err != nil {
             continue
         }
-        decoded.From = scriptInfo[0]
+        var ok bool
+        for k, v := range decodedRaw {
+            decoded[k], ok = v.(string)
+            if !ok {
+                decoded[k] = "_nil"
+            }
+        }
+        decoded["from"] = scriptInfo[0]
         if (!eRuntime.testnet && txData.DaaScore <= 83525600 && len(txData.Data.Outputs) > 0) {  // use output[0]
-            decoded.To = txData.Data.Outputs[0].VerboseData.ScriptPublicKeyAddress
+            decoded["to"] = txData.Data.Outputs[0].VerboseData.ScriptPublicKeyAddress
         }
-        if (!ValidateP(&decoded.P) || !ValidateOp(&decoded.Op) || !ValidateAscii(&decoded.To)) {
+        if (!validateBy(validateP,decoded,"p") || !validateBy(validateOp,decoded,"op") || !validateBy(validateAscii,decoded,"to")) {
             continue
         }
-        operation.Method_Registered[decoded.Op].ScriptCollectEx(i, &decoded, txData, eRuntime.testnet)
-        if !operation.Method_Registered[decoded.Op].Validate(&decoded, txData.TxId, txData.DaaScore, eRuntime.testnet) {
-            continue
-        }
+        validateBy(validateTick, decoded, "tick")
+        validateBy(validateTxId, decoded, "ca")
         if i == 0 {
-            opScript = append(opScript, &decoded)
             scriptSig = scriptInfo[4]
-            continue
         }
-        if !operation.OpRecycle_Registered[decoded.Op] {
-            continue
-        }
-        opScript = append(opScript, &decoded)
+        callList = append(callList, lyncs.DataCallFuncType{
+            Name: decoded["p"] + "_" + decoded["op"],
+            Fn: "init",
+            Session: &lyncs.DataSessionType{
+                Block: map[string]string{
+                    "daaScore": strconv.FormatUint(txData.DaaScore,10),
+                    "hash": txData.BlockAccept,
+                },
+                Tx: map[string]string{
+                    "id": txData.TxId,
+                    "hash": txData.Data.VerboseData.Hash,
+                    "blockTime": strconv.FormatUint(txData.Data.VerboseData.BlockTime,10),
+                    "fee": "0",
+                },
+                TxInputs: txInputs,
+                TxOutputs: txOutputs,
+                Op: map[string]string{
+                    "index": strconv.Itoa(i),
+                    "spkFrom": scriptSig,
+                    "testnet": eRuntime.testnet,
+                },
+                OpParams: decoded,
+            },
+        })
     }
-    if len(opScript) <= 0 {
-        return nil, nil
-    }
-    opData := &storage.DataOperationType{
-        TxId: txData.TxId,
-        DaaScore: txData.DaaScore,
-        BlockAccept: txData.BlockAccept,
-        MtsAdd: int64(txData.Data.VerboseData.BlockTime),
-        OpScript: opScript,
-        ScriptSig: scriptSig,
-        SsInfo: &storage.DataStatsType{},
-    }
-    return opData, nil
+    return callList
 }
 
 ////////////////////////////////
-// Parse the OP data in transaction list.
-func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOperationType, int64, error) {
+// Parse the OP data and prepare the state key in transaction list.
+func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOperationType, storage.DataStateMapType, int64, error) {
     mtss := time.Now().UnixMilli()
-    opDataMap := map[string]*storage.DataOperationType{}
-    txIdMap := map[string]bool{}
+    lenTx := len(txDataList)
+    stateMap := make(storage.DataStateMapType)
+    opDataMap := make(map[string]*storage.DataOperationType, lenTx)
+    txIdMap := make(map[string]bool, lenTx)
+    callInitList := make([]lyncs.DataCallFuncType, 0, lenTx*12/10)
     mutex := new(sync.RWMutex)
-    misc.GoBatch(len(txDataList), func(i int) (error) {
-        opData, err := parseOpData(&txDataList[i])
-        if err != nil {
-            return err
-        }
-        if opData == nil {
+    misc.GoBatch(lenTx, func(i int) (error) {
+        callList := parseOpData(&txDataList[i])
+        if len(callList) <= 0 {
             return nil
         }
         mutex.Lock()
-        opDataMap[opData.TxId] = opData
-        opDataMap[opData.TxId].FeeLeast = operation.Method_Registered[opData.OpScript[0].Op].FeeLeast(opData.DaaScore)
-        if opDataMap[opData.TxId].FeeLeast > 0 {
-            for _, input := range txDataList[i].Data.Inputs {
-                txIdMap[input.PreviousOutpoint.TransactionId] = true
-            }
-        }
+        callInitList = append(callInitList, callList...)
         mutex.Unlock()
         return nil
     })
+    if len(callInitList) <= 0 {
+        return nil, nil, 0, nil
+    }
+
+fmt.Println("mts = ", time.Now().UnixMilli())
+    
+    resultList := lyncs.CallFuncParallel(callInitList, storage.DataStateMapType{}, nil, nil,
+        // Process result use hook.
+        func(c *lyncs.DataCallFuncType, i int, r *lyncs.DataResultType, err error) (*lyncs.DataResultType) {
+            if err != nil || r == nil {
+                return nil
+            }
+            // Check if OP recycle.
+            r.Op["index"] = c.Session.Op["index"]
+            r.Op["spkFrom"] = c.Session.Op["spkFrom"]
+            r.Op["feeLeast"] = r.Op["feeLeast"]
+            validateBy(validateAmount, r.Op, "feeLeast")
+            if r.Op["index"] != "0" && r.Op["isRecycle"] != "1" {
+                return nil
+            }
+            // Check state key.
+            validateStateKey(r.KeyRules)
+            if len(r.KeyRules) <= 0 {
+                return nil
+            }
+            // Check and update OpParams with OpRules.
+            for k, v := range r.OpRules {
+                rule := strings.Split(strings.ReplaceAll(v," ",""), ",")
+                ignored := false
+                required := true
+                if len(rule) > 1 && rule[1] == "o" {
+                    required = false
+                }
+                target, existed := r.OpParams[k]
+                if !existed  {
+                    target = c.Session.OpParams[k]
+                }
+                pass := true
+                if len(rule) > 0 {
+                    if target == "_nil" {
+                        pass = false
+                        required = true
+                    } else if rule[0] == "tick" {
+                        pass = validateTick(&target)
+                    } else if rule[0] == "txid" {
+                        pass = validateTxId(&target)
+                    } else if rule[0] == "addr" {
+                        pass = validateAddr(&target)
+                    } else if rule[0] == "amt" {
+                        pass = validateAmount(&target)
+                    } else if rule[0] == "dec" {
+                        pass = validateDec(&target)
+                    } else if rule[0] == "ascii" {
+                        pass = validateAscii(&target)
+                    } else {
+                        ignored = true
+                    }
+                } else {
+                    ignored = true
+                }
+                if !pass && required {
+                    return nil
+                }
+                if !ignored && target != "" {
+                    r.OpParams[k] = target
+                } else {
+                    delete(r.OpParams, k)
+                }
+            }
+            r.OpParams["p"] = c.Session.OpParams["p"]
+            r.OpParams["op"] = c.Session.OpParams["op"]
+            r.OpParams["from"] = c.Session.OpParams["from"]
+            // Return and update result.
+            return r
+        },
+    )
+    
+fmt.Println("mts = ", time.Now().UnixMilli())
+
+    for i, r := range resultList {
+        if r == nil {
+            continue
+        }
+        session := callInitList[i].Session
+        txId := session.Tx["id"]
+        if opDataMap[txId] == nil {
+            opDataMap[txId] = &storage.DataOperationType{
+                Block: session.Block,
+                Tx: session.Tx,
+                TxInputs: session.TxInputs,
+                TxOutputs: session.TxOutputs,
+                Op: r.Op,
+                OpScript: make([]map[string]string, 0, 8),
+                OpKeyRules: make([]map[string]string, 0, 8),
+                StBefore: make([]string, 0, 8),
+                StAfter: make([]string, 0, 8),
+            }
+            delete(opDataMap[txId].Op, "index")
+            delete(opDataMap[txId].Op, "isRecycle")
+        }
+        opDataMap[txId].OpScript = append(opDataMap[txId].OpScript, r.OpParams)
+        opDataMap[txId].OpKeyRules = append(opDataMap[txId].OpKeyRules, r.KeyRules)
+        if r.Op["feeLeast"] != "0" {
+            for _, input := range session.TxInputs {
+                txIdMap[input["prevTxId"]] = true
+            }
+        }
+        for k, _ := range r.KeyRules {
+            stateMap[k] = nil
+        }
+    }
+    if len(opDataMap) <= 0 {
+        return nil, nil, 0, nil
+    }
     txDataListInput := make([]storage.DataTransactionType, 0, len(txIdMap))
     for txId := range txIdMap {
         txDataListInput = append(txDataListInput, storage.DataTransactionType{TxId: txId})
     }
     txDataMapInput, _, err := storage.GetNodeTransactionDataMap(txDataListInput)
     if err != nil {
-        return nil, 0, err
+        return nil, nil, 0, err
     }
     opDataList := []storage.DataOperationType{}
     daaScoreNow := uint64(0)
@@ -369,8 +506,8 @@ func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOp
             daaScoreNow = txData.DaaScore
             opScore = daaScoreNow * 10000
         }
-        opDataMap[txData.TxId].OpScore = opScore
-        if opDataMap[txData.TxId].FeeLeast > 0 {
+        opDataMap[txData.TxId].Op["score"] = strconv.FormatUint(opScore, 10)
+        if opDataMap[txData.TxId].Op["feeLeast"] != "0" {
             amountIn := uint64(0)
             amountOut := uint64(0)
             for _, output := range txData.Data.Outputs {
@@ -383,44 +520,171 @@ func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOp
                 amountIn += txDataMapInput[input.PreviousOutpoint.TransactionId].Outputs[input.PreviousOutpoint.Index].Amount
             }
             if amountIn <= amountOut {
-                opDataMap[txData.TxId].Fee = 0
-                continue
+                opDataMap[txData.TxId].Tx["fee"] = "0"
+            } else {
+                opDataMap[txData.TxId].Tx["fee"] = strconv.FormatUint(amountIn-amountOut, 10)
             }
-            opDataMap[txData.TxId].Fee = amountIn - amountOut
         }
         opDataList = append(opDataList, *opDataMap[txData.TxId])
         opScore ++
     }
-    return opDataList, time.Now().UnixMilli() - mtss, nil
+    return opDataList, stateMap, time.Now().UnixMilli()-mtss, nil
 }
 
 ////////////////////////////////
-func ValidateP(p *string) (bool) {
-    *p = strings.ToUpper(*p)
-    if !operation.P_Registered[*p] {
+func validateStateKey(keyRules map[string]string) (bool) {
+    result := true
+    for k, r := range keyRules {
+        keys := strings.SplitN(k, "_", 2)
+        if len(keys) < 2 || !storage.KeyPrefixStateMap[keys[0]] || r != "w" && r != "r" {
+            delete(keyRules, k)
+            result = false
+        }
+    }
+    return result
+}
+
+////////////////////////////////
+func validateBy(fn func(*string) (bool), dataMap map[string]string, key string) (bool) {
+    v, exists := dataMap[key]
+    if !exists {
         return false
     }
-    return true
+    r := fn(&v)
+    dataMap[key] = v
+    return r
 }
 
 ////////////////////////////////
-func ValidateOp(op *string) (bool) {
-    *op = strings.ToLower(*op)
-    if !operation.Op_Registered[*op] {
-        return false
-    }
-    return true
-}
-
-////////////////////////////////
-func ValidateAscii(s *string) (bool) {
+func validateAscii(s *string) (bool) {
     if *s == "" {
         return true
     }
     for _, c := range *s {
         if c > unicode.MaxASCII {
+            *s = ""
             return false
         }
     }
     return true
 }
+
+////////////////////////////////
+func validateP(p *string) (bool) {
+    *p = strings.ToUpper(*p)
+    if *p != "KRC-20" {
+        *p = ""
+        return false
+    }
+    return true
+}
+
+////////////////////////////////
+func validateOp(op *string) (bool) {
+    *op = strings.ToLower(*op)
+    if len(*op) <= 0 || len(*op) > 16 {
+        *op = ""
+        return false
+    }
+    if !validateAscii(op) {
+        return false
+    }
+    return true
+}
+
+////////////////////////////////
+func validateTick(tick *string) (bool) {
+    *tick = strings.ToUpper(*tick)
+    lenTick := len(*tick)
+    if (lenTick < 4 || lenTick > 6) {
+        *tick = ""
+        return false
+    }
+    for i := 0; i < lenTick; i++ {
+        if ((*tick)[i] < 65 || (*tick)[i] > 90) {
+            *tick = ""
+            return false
+        }
+    }
+    return true
+}
+
+////////////////////////////////
+func validateTxId(txid *string) (bool) {
+    *txid = strings.ToLower(*txid)
+    if len(*txid) != 64 {
+        *txid = ""
+        return false
+    }
+    _, err := hex.DecodeString(*txid)
+    if err != nil {
+        *txid = ""
+        return false
+    }
+    return true
+}
+
+////////////////////////////////
+func validateAddr(addr *string) (bool) {
+    if !validateAscii(addr) {
+        return false
+    }
+    if !misc.VerifyAddr(*addr, eRuntime.testnet) {
+        *addr = ""
+        return false
+    }
+    return true
+}
+
+////////////////////////////////
+func validateAmount(amount *string) (bool) {
+    if *amount == "" {
+        *amount = "0"
+        return false
+    }
+    amountBig := new(big.Int)
+    _, s := amountBig.SetString(*amount, 10)
+    if !s {
+        *amount = "0"
+        return false
+    }
+    amount2 := amountBig.Text(10)
+    if *amount != amount2 {
+        *amount = "0"
+        return false
+    }
+    limitBig := new(big.Int)
+    limitBig.SetString("0", 10)
+    if limitBig.Cmp(amountBig) >= 0 {
+        *amount = "0"
+        return false
+    }
+    limitBig.SetString("99999999999999999999999999999999", 10)
+    if amountBig.Cmp(limitBig) > 0 {
+        *amount = "99999999999999999999999999999999"
+        return false
+    }
+    return true
+}
+
+////////////////////////////////
+func validateDec(dec *string) (bool) {
+    if *dec == "" {
+        *dec = "8"
+        return false
+    }
+    decInt, err := strconv.Atoi(*dec)
+    if err != nil {
+        *dec = "8"
+        return false
+    }
+    decString := strconv.Itoa(decInt)
+    if (decString != *dec || decInt < 0 || decInt > 18) {
+        *dec = "8"
+        return false
+    }
+    return true
+}
+
+// ...
+
