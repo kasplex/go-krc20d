@@ -13,7 +13,7 @@ krc20 = {
 		local st = {}
 		for i,v in ipairs(t.state or {}) do
 			v[2]["_key"] = v[1]
-			table.insert(st, v[2])
+			st[#st+1] = v[2]
 		end
 		t.state = st
 		return t
@@ -44,14 +44,13 @@ krc20 = {
 		if #data<=0 or #data>65535 then return "\x00"
 		elseif #data<=75 then return string.char(#data)..data
 		elseif #data<=255 then return "\x4c"..string.char(#data)..data
-		else return "\x4d"..string.char((#data>>8)&0xff)..string.char(#data&0xff)..data end
+		else return "\x4d"..string.char(bit.band(bit.rshift(#data,8),0xff))..string.char(bit.band(#data,0xff))..data end
 	end,
 	makeP2SH = function(spk, data)
 		local s = krc20.fromhex(spk).."\x00\x63\x07\x6b\x61\x73\x70\x6c\x65\x78\x00"..krc20.makeScriptData(data).."\x68"
 		local k = "\x08"..crypt.blake2b256(s)
-		if session and session.op and session.op.testnet then k = crypt.encbech32x(k, "kaspatest")
-		else k = crypt.encbech32x(k, "kaspa") end
-		return k, s
+		if session and session.op and session.op.testnet=="1" then return crypt.encbech32x(k,"kaspatest"), s
+		else return crypt.encbech32x(k,"kaspa"), s end
 	end,
 
 }

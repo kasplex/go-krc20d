@@ -3,9 +3,11 @@
 package storage
 
 import (
+    "log"
     "sync"
     "time"
     "math"
+    "strings"
     "log/slog"
     "github.com/gocql/gocql"
 )
@@ -20,6 +22,50 @@ const mtsDelayQueryCassa = 5
 
 ////////////////////////////////
 var mtsBatchLastCassa = int64(0)
+
+////////////////////////////////
+func initCassa() {
+    var err error
+    sRuntime.cassa = gocql.NewCluster(sRuntime.cfgCassa.Host)
+    sRuntime.cassa.Port = sRuntime.cfgCassa.Port
+    sRuntime.cassa.Authenticator = gocql.PasswordAuthenticator{
+        Username: sRuntime.cfgCassa.User,
+        Password: sRuntime.cfgCassa.Pass,
+    }
+    if sRuntime.cfgCassa.Crt != "" {
+        sRuntime.cassa.SslOpts = &gocql.SslOptions{
+            CaPath: sRuntime.cfgCassa.Crt,
+            EnableHostVerification: false,
+        }
+    }
+    sRuntime.cassa.Consistency = gocql.LocalQuorum
+    sRuntime.cassa.DisableInitialHostLookup = false
+    sRuntime.cassa.NumConns = numConns
+    sRuntime.cassa.Keyspace = sRuntime.cfgCassa.Space
+    sRuntime.sessionCassa, err = sRuntime.cassa.CreateSession()
+    if err != nil {
+        log.Fatalln("storage.Init fatal: ", err.Error())
+    }
+    
+    // Init database if new installation.
+    for _, cqln := range cqlnInitTable {
+        err = sRuntime.sessionCassa.Query(cqln).Exec()
+        if err != nil {
+            msg := err.Error()
+            if strings.HasSuffix(msg, "conflicts with an existing column") || strings.HasSuffix(msg, "already exists") {
+                continue
+            }
+            log.Fatalln("storage.Init fatal:", err.Error())
+        }
+    }
+}
+
+////////////////////////////////
+func destroyCassa() {
+    if sRuntime.sessionCassa != nil {
+        sRuntime.sessionCassa.Close()
+    }
+}
 
 ////////////////////////////////
 func startExecuteBatchCassa(lenBatch int, fAdd func(*gocql.Batch, int) (error)) (int64, error) {

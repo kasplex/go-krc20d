@@ -52,8 +52,8 @@ function run()
 		end
 		stBlacklist = {
 			tick = sp.tick,
-			address: sp.to,
-			opadd: session.op.score,
+			address = sp.to,
+			opadd = session.op.score,
 		}
 	elseif sp.mod=="remove" then
 		if stBlacklist==nil then

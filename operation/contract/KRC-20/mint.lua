@@ -37,7 +37,7 @@ function run()
 
 	if stToken==nil then
 		return krc20.fail("tick not found")
-	elseif stToken.mod~="" then
+	elseif stToken.mod~=nil and stToken.mod~="" and stToken.mod~="mint" then
 		return krc20.fail("mode invalid")
 	elseif session.tx.fee==nil or session.tx.fee=="0" then
 		return krc20.fail("fee unknown")

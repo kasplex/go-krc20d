@@ -25,6 +25,9 @@ type CassaConfig struct {
 }
 type RocksConfig struct {
     Path string `json:"path"`
+    BtlIndex uint64 `json:"btlIndex"`
+    BtlFailed uint64 `json:"btlFailed"`
+    IndexDisabled bool `json:"indexDisabled"`
 }
 type LyncsConfig struct {
     NumSlot int `json:"numSlot"`
@@ -40,7 +43,7 @@ type Config struct {
 }
 
 ////////////////////////////////
-const Version = "3.01.251102"
+const Version = "3.01.251212"
 
 ////////////////////////////////
 func Load(cfg *Config) {

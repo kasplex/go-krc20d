@@ -7,9 +7,21 @@ import (
 )
 
 ////////////////////////////////
+type DataSyncedType struct {
+    Synced bool `json:"synced,omitempty"`
+    OpScore uint64 `json:"opscore,omitempty"`
+    Checkpoint string `json:"checkpoint,omitempty"`
+    StCommitment string `json:"stcommitment,omitempty"`
+    DaaScore uint64 `json:"daascore,omitempty"`
+    Version string `json:"version,omitempty"`
+}
+
+////////////////////////////////
 type DataVspcType struct {
-    DaaScore uint64 `json:"daaScore"`
-    Hash string `json:"hash"`
+    DaaScore uint64 `json:"daaScore,omitempty"`
+    Hash string `json:"hash,omitempty"`
+    Timestamp uint64 `json:"timestamp,omitempty"`
+    SeqCommitment string `json:"seqcommitment,omitempty"`
     TxIdList []string `json:"-"`
 }
 
@@ -18,28 +30,9 @@ type DataTransactionType struct {
     TxId string
     DaaScore uint64
     BlockAccept string
+    BlockTime uint64
     Data *protowire.RpcTransaction
 }
-
-////////////////////////////////
-/*type DataScriptType struct {
-    P string `json:"p"`
-    Op string `json:"op"`
-    From string `json:"from,omitempty"`
-    To string `json:"to,omitempty"`
-    Tick string `json:"tick,omitempty"`
-    Max string `json:"max,omitempty"`
-    Lim string `json:"lim,omitempty"`
-    Pre string `json:"pre,omitempty"`
-    Dec string `json:"dec,omitempty"`
-    Amt string `json:"amt,omitempty"`
-    Utxo string `json:"utxo,omitempty"`
-    Price string `json:"price,omitempty"`
-    Mod string `json:"mod,omitempty"`
-    Name string `json:"name,omitempty"`
-    Ca string `json:"ca,omitempty"`
-    // ...
-}*/
 
 ////////////////////////////////
 type DataOpStateType struct {
@@ -51,32 +44,39 @@ type DataOpStateType struct {
     OpAccept int8 `json:"opaccept,omitempty"`
     OpError string `json:"operror,omitempty"`
     Checkpoint string `json:"checkpoint,omitempty"`
+    StCommitment string `json:"stcommitment,omitempty"`
+}
+
+////////////////////////////////
+type IndexOperationType struct {
+    State *DataOpStateType `json:"state,omitempty"`
+    Script map[string]string `json:"script,omitempty"`
+    ScriptEx []map[string]string `json:"Scriptex,omitempty"`
+    StBefore []string `json:"stbefore,omitempty"`
+    StAfter []string `json:"stafter,omitempty"`
+    TickAffc []string `json:"tickaffc,omitempty"`
+    AddressAffc []string `json:"addressaffc,omitempty"`
+    // ...
 }
 
 ////////////////////////////////
 type DataStatsType struct {
+    TickAffcMap map[string]int
+    AddressAffcMap map[string]map[string]string
     TickAffc []string
     AddressAffc []string
-    
-    // TickAffcMap / AddressAffcMap ..
-    
     // XxxAffc ...
 }
 
 ////////////////////////////////
+type DataKvRowType struct {  // {Key}={Val}
+    P *[]byte `json:"-"`
+    Key []byte `json:"k,omitempty"`
+    Val []byte `json:"v,omitempty"`
+}
+
+////////////////////////////////
 type DataOperationType struct {
-    /*TxId string
-    DaaScore uint64
-    BlockAccept string
-    Fee uint64
-    FeeLeast uint64
-    MtsAdd int64
-    OpScore uint64
-    OpAccept int8
-    OpError string
-    OpScript []map[string][string]
-    ScriptSig string*/
-    
     Block map[string]string
     Tx map[string]string
     TxInputs []map[string]string
@@ -84,10 +84,12 @@ type DataOperationType struct {
     Op map[string]string
     OpScript []map[string]string
     OpKeyRules []map[string]string
-    
     StBefore []string
     StAfter []string
+    StRowBefore []*DataKvRowType
+    StRowAfter []*DataKvRowType
     Checkpoint string
+    StCommitment string
     SsInfo *DataStatsType
 }
 
@@ -105,7 +107,6 @@ type StateTokenMetaType struct {
     OpAdd uint64 `json:"opadd,omitempty"`
     MtsAdd int64 `json:"mtsadd,omitempty"`
 }
-
 ////////////////////////////////
 type StateTokenType struct {
     Tick string `json:"tick,omitempty"`
@@ -161,6 +162,23 @@ type StateContractType struct {
     Op string `json:"op,omitempty"`
     Code []byte `json:"code,omitempty"`
     Bc []byte `json:"bc,omitempty"`
+    BcSign string `json:"bcsign,omitempty"`
+    OpMod uint64 `json:"opmod,omitempty"`
+}
+
+////////////////////////////////
+type StateStatsOpCountType struct {
+    Op string
+    Count uint64
+}
+////////////////////////////////
+type StateStatsType struct {
+    OpTotal []StateStatsOpCountType `json:"optotal,omitempty"`
+    OpTotalMap map[string]uint64 `json:"-"`
+    FeeTotal uint64 `json:"feetotal,omitempty"`
+    TokenTotal uint64 `json:"tokentotal,omitempty"`
+    HolderTotal uint64 `json:"holdertotal,omitempty"`
+    HolderTop [][2]string `json:"holdertop,omitempty"`
     OpMod uint64 `json:"opmod,omitempty"`
 }
 
@@ -168,25 +186,19 @@ type StateContractType struct {
 // type StateXxx ...
 
 ////////////////////////////////
-/*type DataStateMapType struct {
-    StateTokenMap map[string]*StateTokenType `json:"statetokenmap,omitempty"`
-    StateBalanceMap map[string]*StateBalanceType `json:"statebalancemap,omitempty"`
-    StateMarketMap map[string]*StateMarketType `json:"statemarketmap,omitempty"`
-    StateBlacklistMap map[string]*StateBlacklistType `json:"stateblacklistmap,omitempty"`
-    // StateXxx ...
-}*/
 type DataStateMapType map[string]map[string]string
 
 ////////////////////////////////
 type DataRollbackType struct {
-    DaaScoreStart uint64 `json:"daascorestart"`
-    DaaScoreEnd uint64 `json:"daascoreend"`
-    CheckpointBefore string `json:"checkpointbefore"`
-    CheckpointAfter string `json:"checkpointafter"`
-    OpScoreLast uint64 `json:"opscorelast"`
-    StateMapBefore DataStateMapType `json:"statemapbefore"`
-    OpScoreList []uint64 `json:"opscorelist"`
-    TxIdList []string `json:"txidlist"`
+    DaaScoreStart uint64 `json:"daascorestart,omitempty"`
+    DaaScoreEnd uint64 `json:"daascoreend,omitempty"`
+    CheckpointBefore string `json:"checkpointbefore,omitempty"`
+    CheckpointAfter string `json:"checkpointafter,omitempty"`
+    StCommitmentBefore string `json:"stcommitmentbefore,omitempty"`
+    StCommitmentAfter string `json:"stcommitmentafter,omitempty"`
+    OpScoreLast uint64 `json:"opscorelast,omitempty"`
+    StRowMapBefore map[string]*DataKvRowType `json:"strowmapbefore,omitempty"`
+    IddKeyList []string `json:"iddkeylist,omitempty"`
 }
 
 ////////////////////////////////

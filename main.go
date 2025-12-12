@@ -80,12 +80,21 @@ func main() {
     // Init storage driver.
     storage.Init(cfg.Cassandra, cfg.Rocksdb)
     
+    // api server ...
+    
     // Init explorer if api server up.
     if (!down) {
-        explorer.Init(ctx, wg, cfg.Startup, cfg.Testnet)
-        go explorer.Run()
+        err = explorer.Init(ctx, wg, cfg.Startup, cfg.Testnet)
+        if err != nil {
+            slog.Info("explorer.Init fatal.", "error", err.Error())
+            c <- syscall.SIGTERM
+        } else {
+            go explorer.Run()
+        }
     }
     
     // Waiting
     wg.Wait()
+    storage.Destroy()
+    slog.Info("main exited.")
 }

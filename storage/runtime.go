@@ -2,89 +2,170 @@
 ////////////////////////////////
 package storage
 
+//#include "rocksdb/c.h"
+import "C"
 import (
+    "fmt"
+    "slices"
     "strconv"
     "encoding/json"
 )
 
 ////////////////////////////////
-const keyPrefixRuntime = "RTA_"  // runtime-arguments
-const keyPrefixRuntimeCassa = "EXE_"  // runtime-arguments in the cluster db.
-
-////////////////////////////////
-// Get runtime data by key, in the local db.
-func GetRuntimeRocks(key string) ([]byte, error) {
-    key = keyPrefixRuntime + key
-    row, err := sRuntime.rocksTx.Get(sRuntime.rOptRocks, []byte(key))
-    if err != nil {
-        return nil, err
-    }
-    return row.Data(), nil
-}
-
-////////////////////////////////
-// Set runtime data by key, in the local db.
-func SetRuntimeRocks(key string, valueJson []byte) (error) {
-    key = keyPrefixRuntime + key
-    err := sRuntime.rocksTx.Put(sRuntime.wOptRocks, []byte(key), valueJson)
-    return err
-}
+const btlIndexRuntime = 864000
+const keyPrefixRuntimeVspc = "rtdvspc"
+const keyPrefixRuntimeRollback = "rtdrollback"
+const keyPrefixRuntimeSynced = "rtdsynced"
 
 ////////////////////////////////
 // Get the last processed vspc data list.
-func GetRuntimeVspcLast() ([]DataVspcType, error) {
-    valueJson, err := GetRuntimeRocks("VSPCLAST")
+func GetRuntimeVspcLast(lenVspc int) ([][]byte, []DataVspcType, error) {
+    keyList := make([][]byte, 0, lenVspc)
+    dataList := make([]DataVspcType, 0, lenVspc)
+    err := seekCF(nil, cfIndex, []byte(keyPrefixRuntimeVspc), []byte(keyPrefixRuntimeVspc+"`"), lenVspc, true, func(i int, key []byte, val []byte) (error) {
+        data := DataVspcType{}
+        err := json.Unmarshal(val, &data)
+        if err != nil {
+            return err
+        }
+        keyByte := make([]byte, len(key))
+        copy(keyByte, key)
+        keyList = append(keyList, keyByte)
+        dataList = append(dataList, data)
+        return nil
+    })
+    if err != nil {
+        return nil, nil, err
+    }
+    slices.Reverse(keyList)
+    slices.Reverse(dataList)
+    return keyList, dataList, nil
+}
+
+////////////////////////////////
+// Get the vspc key list by daaScore seeking.
+func GetRuntimeVspcKeyList(daaScore uint64, maxCount int, dsc bool) ([][]byte, error) {
+    keyList := make([][]byte, 0, 32)
+    var keyStart []byte
+    var keyEnd []byte
+    if dsc {
+        keyEnd = []byte(keyPrefixRuntimeVspc+ "_" + fmt.Sprintf("%020d",daaScore))
+        keyStart = []byte(keyPrefixRuntimeVspc)
+    } else {
+        keyStart = []byte(keyPrefixRuntimeVspc+ "_" + fmt.Sprintf("%020d",daaScore))
+        keyEnd = []byte(keyPrefixRuntimeVspc+"`")
+    }
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (error) {
+        keyByte := make([]byte, len(key))
+        copy(keyByte, key)
+        keyList = append(keyList, keyByte)
+        return nil
+    })
     if err != nil {
         return nil, err
     }
-    if len(valueJson) <= 0 {
-        return nil, nil
+    if dsc {
+        slices.Reverse(keyList)
     }
-    list := []DataVspcType{}
-    err = json.Unmarshal(valueJson, &list)
-    if err != nil {
-        return nil, err
-    }
-    return list, err
+    return keyList, nil
 }
 
 ////////////////////////////////
 // Set the last processed vspc data list.
-func SetRuntimeVspcLast(list []DataVspcType) (error) {
-    valueJson, _ := json.Marshal(list)
-    err := SetRuntimeRocks("VSPCLAST", valueJson)
-    return err
+func SetRuntimeVspcLast(tx *C.rocksdb_transaction_t, list []DataVspcType) (error) {
+    for i := range list {
+        key := keyPrefixRuntimeVspc + "_" + fmt.Sprintf("%020d",list[i].DaaScore)
+        val, err := json.Marshal(&list[i])
+        if err != nil {
+            return err
+        }
+        daaScore := list[i].DaaScore
+        if btlIndexRuntime > sRuntime.cfgRocks.BtlIndex {
+            daaScore += btlIndexRuntime - sRuntime.cfgRocks.BtlIndex
+        } else {
+            daaScore -= sRuntime.cfgRocks.BtlIndex - btlIndexRuntime
+        }
+        err = putCF(tx, cfIndex, []byte(key), val, daaScore)
+        if err != nil {
+            return err
+        }
+    }
+    return nil
 }
 
 ////////////////////////////////
 // Get the last rollback data list.
-func GetRuntimeRollbackLast() ([]DataRollbackType, error) {
-    valueJson, err := GetRuntimeRocks("ROLLBACKLAST")
+func GetRuntimeRollbackLast(lenRollback int, keyEnd []byte) ([][]byte, []DataRollbackType, error) {
+    if len(keyEnd) == 0 {
+        keyEnd = []byte(keyPrefixRuntimeRollback + "`")
+    }
+    keyList := make([][]byte, 0, lenRollback)
+    dataList := make([]DataRollbackType, 0, lenRollback)
+    err := seekCF(nil, cfIndex, []byte(keyPrefixRuntimeRollback), keyEnd, lenRollback, true, func(i int, key []byte, val []byte) (error) {
+        data := DataRollbackType{}
+        err := json.Unmarshal(val, &data)
+        if err != nil {
+            return err
+        }
+        keyByte := make([]byte, len(key))
+        copy(keyByte, key)
+        keyList = append(keyList, keyByte)
+        dataList = append(dataList, data)
+        return nil
+    })
     if err != nil {
-        return nil, err
+        return nil, nil, err
     }
-    if len(valueJson) <= 0 {
-        return nil, nil
-    }
-    list := []DataRollbackType{}
-    err = json.Unmarshal(valueJson, &list)
-    if err != nil {
-        return nil, err
-    }
-    return list, err
+    slices.Reverse(keyList)
+    slices.Reverse(dataList)
+    return keyList, dataList, nil
 }
 
 ////////////////////////////////
-// Set the last op data list.
-func SetRuntimeRollbackLast(list []DataRollbackType) (error) {
-    valueJson, _ := json.Marshal(list)
-    err := SetRuntimeRocks("ROLLBACKLAST", valueJson)
-    return err
+// Set the last rollback data.
+func SetRuntimeRollbackLast(tx *C.rocksdb_transaction_t, rollback *DataRollbackType) (error) {
+    key := keyPrefixRuntimeRollback + "_" + fmt.Sprintf("%020d",rollback.DaaScoreStart) + "_" + strconv.FormatUint(rollback.DaaScoreEnd,10)
+    val, err := json.Marshal(rollback)
+    if err != nil {
+        return err
+    }
+    daaScore := rollback.DaaScoreEnd
+    if btlIndexRuntime > sRuntime.cfgRocks.BtlIndex {
+        daaScore += btlIndexRuntime - sRuntime.cfgRocks.BtlIndex
+    } else {
+        daaScore -= sRuntime.cfgRocks.BtlIndex - btlIndexRuntime
+    }
+    return putCF(tx, cfIndex, []byte(key), val, daaScore)
+}
+
+////////////////////////////////
+// Get the sync state.
+func GetRuntimeSynced() (*DataSyncedType, error) {
+    val, err := getCF(nil, cfIndex, []byte(keyPrefixRuntimeSynced))
+    if err != nil {
+        return nil, err
+    }
+    data := &DataSyncedType{}
+    err = json.Unmarshal(val, data)
+    if err != nil {
+        return nil, err
+    }
+    return data, nil
+}
+
+////////////////////////////////
+// Set the sync state.
+func SetRuntimeSynced(tx *C.rocksdb_transaction_t, data *DataSyncedType) (error) {
+    val, err := json.Marshal(data)
+    if err != nil {
+        return err
+    }
+    return putCF(tx, cfIndex, []byte(keyPrefixRuntimeSynced), val, 0)
 }
 
 ////////////////////////////////
 // Get runtime data from table "runtime", in the cluster db.
-func GetRuntimeCassaRaw(key string) (string, string, string, error) {
+func GetRuntimeCassa(key string) (string, string, string, error) {
     row := sRuntime.sessionCassa.Query(cqlnGetRuntime, key)
     defer row.Release()
     var k0, v1, v2, v3 string
@@ -99,57 +180,9 @@ func GetRuntimeCassaRaw(key string) (string, string, string, error) {
 }
 
 ////////////////////////////////
-// Get runtime data from table "runtime" with keyPrefixRuntimeCassa, in the cluster db.
-func GetRuntimeCassa(key string) (string, string, string, error) {
-    return GetRuntimeCassaRaw(keyPrefixRuntimeCassa + key)
-}
-
-////////////////////////////////
-// Set runtime data to table "runtime", in the cluster db.
-func SetRuntimeCassa(key string, v1 string, v2 string, v3 string) (error) {
-    key = keyPrefixRuntimeCassa + key
-    err := sRuntime.sessionCassa.Query(cqlnSetRuntime, key, v1, v2, v3).Exec()
-    return err
-}
-
-////////////////////////////////
-// Get the sync state.
-func GetRuntimeSynced() (bool, uint64, error) {
-    Synced, _, strDaaScore, err := GetRuntimeCassa("SYNCED")
-    if err != nil {
-        return false, 0, err
-    }
-    daaScore, _ := strconv.ParseUint(strDaaScore, 10, 64)
-    if Synced == "" {
-        return false, daaScore, nil
-    }
-    return true, daaScore, nil
-}
-
-////////////////////////////////
-// Set the sync state.
-func SetRuntimeSynced(Synced bool, opScore uint64, daaScore uint64) (error) {
-    var err error
-    strDaaScore := strconv.FormatUint(daaScore, 10)
-    strOpScore := strconv.FormatUint(opScore, 10)
-    if Synced {
-        err = SetRuntimeCassa("SYNCED", "1", strOpScore, strDaaScore)
-    } else {
-        err = SetRuntimeCassa("SYNCED", "", strOpScore, strDaaScore)
-    }
-    return err
-}
-
-////////////////////////////////
-// Set the version.
-func SetRuntimeVersion(version string) (error) {
-    return SetRuntimeCassa("VERSION", version, "", "")
-}
-
-////////////////////////////////
 // Get the last updated virtual chain block state.
 func GetRuntimeChainBlockLast() (string, uint64, uint64, error) {
-    hash, blueScore, daaScore, err := GetRuntimeCassaRaw("H_CBLOCK_LAST")
+    hash, blueScore, daaScore, err := GetRuntimeCassa("H_CBLOCK_LAST")
     if err != nil {
         return "", 0, 0, err
     }

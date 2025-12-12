@@ -13,7 +13,9 @@
         "space": "kpdb01mainnet"
     },
     "rocksdb": {
-        "path": "./data"
+        "path": "./data",
+        "btlIndex": 25920000,
+        "btlFailed": 288000
     },
     "lyncs": {
         "numSlot": 8,

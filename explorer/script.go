@@ -276,7 +276,6 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
     if lenInput <= 0 {
         return nil
     }
-    //var opScript []*storage.DataScriptType
     txInputs := make([]map[string]string, 0, len(txData.Data.Inputs))
     txOutputs := make([]map[string]string, 0, len(txData.Data.Outputs))
     for _, input := range txData.Data.Inputs {
@@ -325,6 +324,10 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
         if i == 0 {
             scriptSig = scriptInfo[4]
         }
+        testnet := ""
+        if eRuntime.testnet {
+            testnet = "1"
+        }
         callList = append(callList, lyncs.DataCallFuncType{
             Name: decoded["p"] + "_" + decoded["op"],
             Fn: "init",
@@ -332,11 +335,11 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
                 Block: map[string]string{
                     "daaScore": strconv.FormatUint(txData.DaaScore,10),
                     "hash": txData.BlockAccept,
+                    "timestamp": strconv.FormatUint(txData.BlockTime,10),
                 },
                 Tx: map[string]string{
                     "id": txData.TxId,
                     "hash": txData.Data.VerboseData.Hash,
-                    "blockTime": strconv.FormatUint(txData.Data.VerboseData.BlockTime,10),
                     "fee": "0",
                 },
                 TxInputs: txInputs,
@@ -344,7 +347,7 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
                 Op: map[string]string{
                     "index": strconv.Itoa(i),
                     "spkFrom": scriptSig,
-                    "testnet": eRuntime.testnet,
+                    "testnet": testnet,
                 },
                 OpParams: decoded,
             },
@@ -415,6 +418,8 @@ fmt.Println("mts = ", time.Now().UnixMilli())
                     if target == "_nil" {
                         pass = false
                         required = true
+                    } else if k == "tick" && rule[0] != "tick" && rule[0] != "txid" {
+                        pass = false
                     } else if rule[0] == "tick" {
                         pass = validateTick(&target)
                     } else if rule[0] == "txid" {
@@ -458,6 +463,12 @@ fmt.Println("mts = ", time.Now().UnixMilli())
         }
         session := callInitList[i].Session
         txId := session.Tx["id"]
+        for k := range r.KeyRules {
+            stateMap[k] = nil
+            if strings.HasPrefix(k, storage.KeyPrefixStateStats) {
+                delete(r.KeyRules, k)
+            }
+        }
         if opDataMap[txId] == nil {
             opDataMap[txId] = &storage.DataOperationType{
                 Block: session.Block,
@@ -479,9 +490,6 @@ fmt.Println("mts = ", time.Now().UnixMilli())
             for _, input := range session.TxInputs {
                 txIdMap[input["prevTxId"]] = true
             }
-        }
-        for k, _ := range r.KeyRules {
-            stateMap[k] = nil
         }
     }
     if len(opDataMap) <= 0 {
@@ -539,8 +547,13 @@ func validateStateKey(keyRules map[string]string) (bool) {
         if len(keys) < 2 || !storage.KeyPrefixStateMap[keys[0]] || r != "w" && r != "r" {
             delete(keyRules, k)
             result = false
+            continue
+        }
+        if keys[0]==storage.KeyPrefixStateToken {
+            keyRules[storage.KeyPrefixStateStats+"_"+keys[1]] = "r"
         }
     }
+    keyRules[storage.KeyPrefixStateStats+"_#KRC-20"] = "r"
     return result
 }
 

@@ -13,9 +13,50 @@ import (
 )
 
 ////////////////////////////////
+// Get the timestamp map of the blocks, use the node archive db.
+func GetNodeBlockTimestampMap(timestampMap map[string]uint64) (int64, error) {
+    lenBlock := len(timestampMap)
+    hashList := make([]string, 0, lenBlock)
+    for hash := range timestampMap {
+        hashList = append(hashList, hash)
+    }
+    mutex := new(sync.RWMutex)
+    mtsBatch, err := startQueryBatchInCassa(lenBlock, func(iStart int, iEnd int, session *gocql.Session) (error) {
+        hashIn := []string{}
+        for i := iStart; i < iEnd; i ++ {
+            hashIn = append(hashIn, "'"+hashList[i]+"'")
+        }
+        cql := strings.Replace(cqlnGetBlockHeader, "{hashIn}", strings.Join(hashIn,","), 1)
+        row := session.Query(cql).Iter().Scanner()
+        for row.Next() {
+            var hash string
+            var headerJson string
+            err := row.Scan(&hash, &headerJson)
+            if err != nil {
+                return err
+            }
+            header := protowire.RpcBlockHeader{}
+            err = json.Unmarshal([]byte(headerJson), &header)
+            if err != nil {
+                return err
+            }
+            mutex.Lock()
+            timestampMap[hash] = uint64(header.Timestamp)
+            mutex.Unlock()
+        }
+        return row.Err()
+    })
+    if err != nil {
+        return 0, err
+    }
+    return mtsBatch, nil
+}
+
+////////////////////////////////
 // Get the next vspc data list, use the node archive db.
 func GetNodeVspcList(daaScoreStart uint64, lenBlock int) ([]DataVspcType, int64, error) {
-    vspcMap := map[uint64]*DataVspcType{}
+    vspcMap := make(map[uint64]*DataVspcType, lenBlock)
+    timestampMap := make(map[string]uint64, lenBlock)
     mutex := new(sync.RWMutex)
     mtsBatch, err := startQueryBatchInCassa(lenBlock, func(iStart int, iEnd int, session *gocql.Session) (error) {
         daaScoreList := []string{}
@@ -46,6 +87,7 @@ func GetNodeVspcList(daaScoreStart uint64, lenBlock int) ([]DataVspcType, int64,
                 Hash: hash,
                 TxIdList: txIdList,
             }
+            timestampMap[hash] = 0
             mutex.Unlock()
         }
         return row.Err()
@@ -53,11 +95,13 @@ func GetNodeVspcList(daaScoreStart uint64, lenBlock int) ([]DataVspcType, int64,
     if err != nil {
         return nil, 0, err
     }
-    vspcList := []DataVspcType{}
+    _, err = GetNodeBlockTimestampMap(timestampMap)
+    vspcList := make([]DataVspcType, 0, lenBlock)
     for i := daaScoreStart; i < daaScoreStart+uint64(lenBlock); i ++ {
         if vspcMap[i] == nil {
             continue
         }
+        vspcMap[i].Timestamp = timestampMap[vspcMap[i].Hash]
         vspcList = append(vspcList, *vspcMap[i])
     }
     return vspcList, mtsBatch, nil

@@ -4,16 +4,16 @@ package operation
 
 import (
     "fmt"
-    "log"
     "sync"
     "time"
+    "sort"
     "embed"
     "io/fs"
     "strconv"
     "strings"
     "log/slog"
     "math/big"
-    //"encoding/hex"
+    "encoding/json"
     "golang.org/x/crypto/blake2b"
     "github.com/kasplex/go-lyncs"
     "kasplex-executor/config"
@@ -27,7 +27,10 @@ var builtinKrc20 string
 var fsGenesis embed.FS
 
 ////////////////////////////////
-func InitLyncs(cfg config.LyncsConfig, stateContractMap map[string]*storage.StateContractType) {
+const lenHolderTopMax = 200
+
+////////////////////////////////
+func InitLyncs(cfg config.LyncsConfig, stateContractMap map[string]*storage.StateContractType) (error) {
     if cfg.NumSlot < 2 {
         cfg.NumSlot = 8
     }
@@ -65,13 +68,14 @@ func InitLyncs(cfg config.LyncsConfig, stateContractMap map[string]*storage.Stat
         return nil
     })
     if err != nil {
-        log.Fatalln("operation.InitLyncs fatal:", err.Error())
+        return err
     }
     err = ApplyContractMap(stateContractMap)
     if err != nil {
-        log.Fatalln("operation.InitLyncs fatal:", err.Error())
+        return err
     }
     slog.Info("lyncs ready.")
+    return nil
 }
 
 ////////////////////////////////
@@ -105,18 +109,18 @@ func PrepareStateBatch(stateMap storage.DataStateMapType) (int64, error) {
 }
 
 ////////////////////////////////
-func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataStateMapType, checkpointLast string, testnet bool) (storage.DataRollbackType, int64, error) {
+func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataStateMapType, checkpointLast string, testnet bool) (storage.DataRollbackType, map[string]*storage.DataKvRowType, int64, error) {
     mtss := time.Now().UnixMilli()
     rollback := storage.DataRollbackType{
         CheckpointBefore: checkpointLast,
-        OpScoreList: []uint64{},
-        TxIdList: []string{},
     }
     lenOp := len(opDataList)
     if len(opDataList) <= 0 {
-        return rollback, 0, nil
+        return rollback, nil, 0, nil
     }
-    rollback.StateMapBefore = storage.CopyDataStateMap(stateMap)
+
+fmt.Println("mts = ", time.Now().UnixMilli())
+    
     callRunList := make([]lyncs.DataCallFuncType, 0, lenOp*12/10)
     for i := range opDataList {
         for j := range opDataList[i].OpScript {
@@ -140,10 +144,18 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
     resultMap := make(map[string]map[int]*lyncs.DataResultType, len(callRunList))
     stLineBeforeMap := make(map[string]map[int][]string, len(callRunList))
     stLineAfterMap := make(map[string]map[int][]string, len(callRunList))
+    stRowBeforeMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
+    stRowAfterMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
     mutex := &sync.RWMutex{}
+
+fmt.Println("mts = ", time.Now().UnixMilli())
+    
     lyncs.CallFuncParallel(callRunList, stateMap, nil, nil,
         func(c *lyncs.DataCallFuncType, i int, r *lyncs.DataResultType, err error) (*lyncs.DataResultType) {
             if err != nil {
+                
+fmt.Println("error: ", err.Error())
+                
                 r = &lyncs.DataResultType{
                     Op: map[string]string{
                       "score": c.Session.Op["score"],
@@ -154,11 +166,14 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
             }
             stLineBefore := make([]string, 0, len(r.State))
             stLineAfter := make([]string, 0, len(r.State))
+            stRowBefore := make([]*storage.DataKvRowType, 0, len(r.State))
+            stRowAfter := make([]*storage.DataKvRowType, 0, len(r.State))
             for _, s := range r.State {
                 if s == nil {
                     continue
                 }
                 stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, c.Session.State[s["_key"]], s)
+                stRowBefore, stRowAfter = makeStRow(stRowBefore, stRowAfter, c.Session.State[s["_key"]], s)
             }
             index, _ := strconv.Atoi(c.Session.Op["index"])
             mutex.Lock()
@@ -168,6 +183,12 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
             stLineAfterMap[c.Session.Op["score"]] = map[int][]string{
                 index: stLineAfter,
             }
+            stRowBeforeMap[c.Session.Op["score"]] = map[int][]*storage.DataKvRowType{
+                index: stRowBefore,
+            }
+            stRowAfterMap[c.Session.Op["score"]] = map[int][]*storage.DataKvRowType{
+                index: stRowAfter,
+            }
             resultMap[c.Session.Op["score"]] = map[int]*lyncs.DataResultType{
                 index: r,
             }
@@ -175,6 +196,9 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
             return r
         },
     )
+
+fmt.Println("mts = ", time.Now().UnixMilli())
+    
     misc.GoBatch(len(opDataList), func(i int) (error) {
         opData := &opDataList[i]
         iScriptAccept := -1
@@ -199,15 +223,17 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
             opData.Op["error"] = opError
         }
         if opData.Op["accept"] == "1" {
-            var stMapBefore map[string]*string
-            var stMapAfter map[string]*string
-            opData.StBefore, stMapBefore = mergeStLine(stLineBeforeMap[opData.Op["score"]], false)
-            opData.StAfter, stMapAfter = mergeStLine(stLineAfterMap[opData.Op["score"]], true)
+            var stMapBefore map[string]string
+            var stMapAfter map[string]string
+            opData.StBefore, opData.StRowBefore, stMapBefore = mergeStLineMap(stLineBeforeMap[opData.Op["score"]], stRowBeforeMap[opData.Op["score"]], false)
+            opData.StAfter, opData.StRowAfter, stMapAfter = mergeStLineMap(stLineAfterMap[opData.Op["score"]], stRowAfterMap[opData.Op["score"]], true)
             opData.SsInfo = countStLine(stMapBefore, stMapAfter)
         }
         return nil
     })
-    
+
+fmt.Println("mts = ", time.Now().UnixMilli())
+        
 /*for k,v := range resultMap {
 fmt.Println("resultMap["+k+"]: ", v[0].Op, v[0].OpParams, v[0].KeyRules, v[0].State)
 }
@@ -225,6 +251,9 @@ for k,v := range stateMap {
 fmt.Println("stateMap["+k+"]: ", v)
 }*/
 
+    stRowMapBefore := make(map[string]*storage.DataKvRowType, lenOp*4)
+    stRowMapAfter := make(map[string]*storage.DataKvRowType, lenOp*4)
+    stStatsMap := make(map[string]*storage.StateStatsType, 16)
     for i := range opDataList {
         opData := &opDataList[i]
         if opData.Op["accept"] == "1" {
@@ -234,54 +263,39 @@ fmt.Println("stateMap["+k+"]: ", v)
             cpState := strings.Join(opData.StAfter, ";")
             sum = blake2b.Sum256([]byte(cpState))
             cpState = fmt.Sprintf("%064x", string(sum[:]))
+            
+            // opData.StCommitment ...
+            
             sum = blake2b.Sum256([]byte(checkpointLast + cpHeader + cpState))
             opData.Checkpoint = fmt.Sprintf("%064x", string(sum[:]))
             checkpointLast = opData.Checkpoint
-            
-            // ststats_#KRC-20 -  op|total / tokentotal / feetotal ..
-            // ststats_{token} - holdertotal / op|total / top100 ..
-            
-            // optotal ++
-            // optotal_{op} ++
-            // optotal_{token} ++
-            // optotal_{token}_{op} ++
-            // feetotal ++
-            
-            // IF op:deploy
-            //   tokentotal ++
-            
-            // IF SsInfo.TickAffcMap
-            //   holdertotal ++/--
-            // IF SsInfo.AddressAffcMap
-            //   top100 **
-            
-            // prepare key list ..
-            
+            calculateStStats(opData, stateMap, stStatsMap, stRowMapBefore)
+            stRowMapBefore = appendStRowList(stRowMapBefore, opData.StRowBefore, false)
+            stRowMapAfter = appendStRowList(stRowMapAfter, opData.StRowAfter, true)
         }
         rollback.OpScoreLast, _ = strconv.ParseUint(opData.Op["score"], 10, 64)
-        rollback.OpScoreList = append(rollback.OpScoreList, rollback.OpScoreLast)
-        rollback.TxIdList = append(rollback.TxIdList, opData.Tx["id"])
     }
-    
-    // PrepareStateBatch - ststats key lsit ..
-    // before - rollback.StateMapBefore ..
-    // after - stateMap ..
-    
+    updateStStats(stStatsMap, stRowMapAfter)
+    rollback.StRowMapBefore = stRowMapBefore
     rollback.CheckpointAfter = checkpointLast
-    
-fmt.Println("rollback: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, rollback.CheckpointBefore, rollback.CheckpointAfter, rollback.OpScoreLast)
 
-    return rollback, time.Now().UnixMilli() - mtss, nil
+fmt.Println("mts = ", time.Now().UnixMilli())
+        
+/*for k,v := range stateMap {
+fmt.Println("stateMap["+k+"]: ", v)
+}
+fmt.Println("rollback: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, rollback.CheckpointBefore, rollback.CheckpointAfter, rollback.OpScoreLast)*/
+
+    return rollback, stRowMapAfter, time.Now().UnixMilli() - mtss, nil
 }
 
 ////////////////////////////////
-func countStLine(stMapBefore map[string]*string, stMapAfter map[string]*string) (*storage.DataStatsType) {
+func countStLine(stMapBefore map[string]string, stMapAfter map[string]string) (*storage.DataStatsType) {
     ssInfo := &storage.DataStatsType{
         TickAffc: make([]string, 0, 2),
         AddressAffc: make([]string, 0, 4),
-        
-        // TickAffcMap / AddressAffc ..
-        
+        TickAffcMap: make(map[string]int, 2),
+        AddressAffcMap: make(map[string]map[string]string, 2),
     }
     TickAffcMap := make(map[string]int, 2)
     balanceBig := new(big.Int)
@@ -291,10 +305,10 @@ func countStLine(stMapBefore map[string]*string, stMapAfter map[string]*string) 
         if line[0] == storage.KeyPrefixStateBalance {
             nilBefore := false
             nilAfter := false
-            if stMapBefore[k] == nil || *stMapBefore[k] == "" {
+            if stMapBefore[k] == "" {
                 nilBefore = true
             }
-            if v == nil || *v == "" {
+            if v == "" {
                 nilAfter = true
             }
             if nilBefore && !nilAfter {
@@ -304,38 +318,59 @@ func countStLine(stMapBefore map[string]*string, stMapAfter map[string]*string) 
             } else {
                 TickAffcMap[line[2]] = TickAffcMap[line[2]]
             }
-            total := "=0"
+            total := "0"
             if !nilAfter {
-                stBalance := strings.Split(*v, ",")
+                stBalance := strings.Split(v, ",")
                 balanceBig.SetString(stBalance[1], 10)
                 lockedBig.SetString(stBalance[2], 10)
                 balanceBig = balanceBig.Add(balanceBig, lockedBig)
-                total = "=" + balanceBig.Text(10)
+                total = balanceBig.Text(10)
             }
-            ssInfo.AddressAffc = append(ssInfo.AddressAffc, line[1]+"_"+line[2]+total)
-            
-            // AddressAffcMap ..
-            
+            ssInfo.AddressAffc = append(ssInfo.AddressAffc, line[1]+"_"+line[2]+"="+total)
+            if ssInfo.AddressAffcMap[line[2]] == nil {
+                ssInfo.AddressAffcMap[line[2]] = make(map[string]string, 4)
+            }
+            ssInfo.AddressAffcMap[line[2]][line[1]] = total
         }
     }
     for k, v := range TickAffcMap {
+        ssInfo.TickAffcMap[k] = v
         ssInfo.TickAffc = append(ssInfo.TickAffc, k+"="+strconv.Itoa(v))
-            
-        // TickAffcMap ..
-            
     }
     return ssInfo
 }
 
 ////////////////////////////////
-func mergeStLine(stLineList map[int][]string, isAfter bool) ([]string, map[string]*string) {
+func appendStRowList(stRowMap map[string]*storage.DataKvRowType, stRowlist []*storage.DataKvRowType, isAfter bool) (map[string]*storage.DataKvRowType) {
+    for _, row := range stRowlist {
+        if row == nil || len(row.Key) == 0 {
+            continue
+        }
+        key := string(row.Key)
+        _, exists := stRowMap[key]
+        if exists && !isAfter {
+            continue
+        }
+        stRowMap[key] = row
+    }
+    return stRowMap
+}
+
+////////////////////////////////
+func mergeStLineMap(stLineMap map[int][]string, stRowMap map[int][]*storage.DataKvRowType, isAfter bool) ([]string, []*storage.DataKvRowType, map[string]string) {
+    lenSt := len(stLineMap)
+    iList := make([]int, 0, lenSt)
+    for i := range stLineMap{
+        iList = append(iList, i)
+    }
+    sort.Ints(iList)
     stLine := make([]string, 0, 8)
-    stMap := make(map[string]*string, 8)
+    stRowList := make([]*storage.DataKvRowType, 0, 8)
+    stMap := make(map[string]string, 8)
     indexLine := map[string]int{}
-    lenSt := len(stLineList)
     for i := 0; i < lenSt; i++ {
-        for j := range stLineList[i] {
-            line := strings.SplitN(stLineList[i][j], ",", 2)
+        for j := range stLineMap[iList[i]] {
+            line := strings.SplitN(stLineMap[iList[i]][j], ",", 2)
             v := ""
             if len(line) > 1 {
                 v = line[1]
@@ -343,15 +378,31 @@ func mergeStLine(stLineList map[int][]string, isAfter bool) ([]string, map[strin
             index, exists := indexLine[line[0]]
             if !exists {
                 indexLine[line[0]] = len(stLine)
-                stLine = append(stLine, stLineList[i][j])
-                stMap[line[0]] = &v
+                stLine = append(stLine, stLineMap[iList[i]][j])
+                stRowList = append(stRowList, stRowMap[iList[i]][j])
+                stMap[line[0]] = v
             } else if isAfter {
-                stLine[index] = stLineList[i][j]
-                stMap[line[0]] = &v
+                stLine[index] = stLineMap[iList[i]][j]
+                stRowList[index] = stRowMap[iList[i]][j]
+                stMap[line[0]] = v
             }
         }
     }
-    return stLine, stMap
+    return stLine, stRowList, stMap
+}
+
+////////////////////////////////
+func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataKvRowType, stBefore map[string]string, stAfter map[string]string) ([]*storage.DataKvRowType, []*storage.DataKvRowType) {
+    key := stAfter["_key"]
+    before := storage.ConvStateToKvRow(key, stBefore)
+    after := storage.ConvStateToKvRow(key, stAfter)
+    if before != nil {
+        stRowBefore = append(stRowBefore, before)
+    }
+    if after != nil {
+        stRowAfter = append(stRowAfter, after)
+    }
+    return stRowBefore, stRowAfter
 }
 
 ////////////////////////////////
@@ -408,26 +459,6 @@ func makeStLineToken(key string, stToken map[string]string, isDeploy bool) (stri
     return strings.Join(list, ",")
 }
 
-/*func AppendStLineToken(stLine []string, key string, stToken *storage.StateTokenType, isDeploy bool, isAfter bool) ([]string) {
-    keyFull := storage.KeyPrefixStateToken + key
-    iExists := -1
-    list := []string{}
-    for i, line := range stLine {
-        list = strings.SplitN(line, ",", 2)
-        if list[0] == keyFull {
-            iExists = i
-            break
-        }
-    }
-    if iExists < 0 {
-        return append(stLine, MakeStLineToken(key, stToken, isDeploy))
-    }
-    if isAfter {
-        stLine[iExists] = MakeStLineToken(key, stToken, isDeploy)
-    }
-    return stLine
-}*/
-
 ////////////////////////////////
 func makeStLineBalance(key string, stBalance map[string]string) (string) {
     if stBalance == nil || stBalance["_key"] != "" && len(stBalance) == 1 {
@@ -442,26 +473,6 @@ func makeStLineBalance(key string, stBalance map[string]string) (string) {
     return strings.Join(list, ",")
 }
 
-/*func AppendStLineBalance(stLine []string, key string, stBalance *storage.StateBalanceType, isAfter bool) ([]string) {
-    keyFull := storage.KeyPrefixStateBalance + key
-    iExists := -1
-    list := []string{}
-    for i, line := range stLine {
-        list = strings.SplitN(line, ",", 2)
-        if list[0] == keyFull {
-            iExists = i
-            break
-        }
-    }
-    if iExists < 0 {
-        return append(stLine, MakeStLineBalance(key, stBalance))
-    }
-    if isAfter {
-        stLine[iExists] = MakeStLineBalance(key, stBalance)
-    }
-    return stLine
-}*/
-
 ////////////////////////////////
 func makeStLineMarket(key string, stMarket map[string]string) (string) {
     if stMarket == nil || stMarket["_key"] != "" && len(stMarket) == 1 {
@@ -475,26 +486,6 @@ func makeStLineMarket(key string, stMarket map[string]string) (string) {
     list = append(list, stMarket["opadd"])
     return strings.Join(list, ",")
 }
-
-/*func AppendStLineMarket(stLine []string, key string, stMarket *storage.StateMarketType, isAfter bool) ([]string) {
-    keyFull := storage.KeyPrefixStateMarket + key
-    iExists := -1
-    list := []string{}
-    for i, line := range stLine {
-        list = strings.SplitN(line, ",", 2)
-        if list[0] == keyFull {
-            iExists = i
-            break
-        }
-    }
-    if iExists < 0 {
-        return append(stLine, MakeStLineMarket(key, stMarket))
-    }
-    if isAfter {
-        stLine[iExists] = MakeStLineMarket(key, stMarket)
-    }
-    return stLine
-}*/
 
 ////////////////////////////////
 func makeStLineBlacklist(key string, stBlacklist map[string]string) (string) {
@@ -520,158 +511,131 @@ func makeStLineContract(key string, stContract map[string]string) (string) {
     return strings.Join(list, ",")
 }
 
-/*func AppendStLineBlacklist(stLine []string, key string, stBlacklist *storage.StateBlacklistType, isAfter bool) ([]string) {
-    keyFull := storage.KeyPrefixStateBlacklist + key
-    iExists := -1
-    list := []string{}
-    for i, line := range stLine {
-        list = strings.SplitN(line, ",", 2)
-        if list[0] == keyFull {
-            iExists = i
-            break
-        }
-    }
-    if iExists < 0 {
-        return append(stLine, MakeStLineBlacklist(key, stBlacklist))
-    }
-    if isAfter {
-        stLine[iExists] = MakeStLineBlacklist(key, stBlacklist)
-    }
-    return stLine
-}
 
 ////////////////////////////////
-func AppendSsInfoTickAffc(tickAffc []string, key string, value int64) ([]string) {
-    iExists := -1
-    valueBefore := int64(0)
-    list := []string{}
-    for i, affc := range tickAffc {
-        list = strings.SplitN(affc, "=", 2)
-        if list[0] == key {
-            iExists = i
-            if len(list) > 1 {
-                valueBefore, _ = strconv.ParseInt(list[1], 10, 64)
+func updateStatsHolderTop(holderTop [][2]string, addrAmtMap map[string]string) ([][2]string) {
+    amtBig := new(big.Int)
+    topBig := new(big.Int)
+    for addr, amt := range addrAmtMap {
+        lenHolder := len(holderTop)
+        index := -1
+        for i := lenHolder-1; i >= 0; i-- {
+            if addr == holderTop[i][0] {
+                index = i
+                break
+            }
+        }
+        if index >= 0 {
+            lenHolder --
+            for i := index; i < lenHolder; i++ {
+                holderTop[i] = holderTop[i+1]
+            }
+            holderTop = holderTop[:lenHolder]
+        }
+        index = -1
+        amtBig.SetString(amt, 10)
+        for i := lenHolder-1; i >= 0; i-- {
+            topBig.SetString(holderTop[i][1], 10)
+            if amtBig.Cmp(topBig) > 0 {
+                index = i
+                continue
             }
             break
         }
-    }
-    if iExists < 0 {
-        return append(tickAffc, key+"="+strconv.FormatInt(value, 10))
-    }
-    tickAffc[iExists] = key+"="+strconv.FormatInt(value+valueBefore, 10)
-    return tickAffc
-}
-
-////////////////////////////////
-func AppendSsInfoAddressAffc(addressAffc []string, key string, value string) ([]string) {
-    iExists := -1
-    list := []string{}
-    for i, affc := range addressAffc {
-        list = strings.SplitN(affc, "=", 2)
-        if list[0] == key {
-            iExists = i
-            break
+        if index == -1 && lenHolder < lenHolderTopMax {
+            holderTop = append(holderTop, [2]string{addr,amt})
+        } else if index >= 0 {
+            holderTop = append(holderTop, holderTop[lenHolder-1])
+            for i := lenHolder-1; i > index; i-- {
+                holderTop[i] = holderTop[i-1]
+            }
+            holderTop[index] = [2]string{addr,amt}
+            if len(holderTop) > lenHolderTopMax {
+                holderTop = holderTop[:lenHolderTopMax]
+            }
         }
     }
-    if iExists < 0 {
-        return append(addressAffc, key+"="+value)
-    }
-    addressAffc[iExists] = key+"="+value
-    return addressAffc
-}*/
+    return holderTop
+}
 
 ////////////////////////////////
-/*func ValidateTick(tick *string) (bool) {
-    *tick = strings.ToUpper(*tick)
-    lenTick := len(*tick)
-    if (lenTick < 4 || lenTick > 6) {
-        return false
-    }
-    for i := 0; i < lenTick; i++ {
-        if ((*tick)[i] < 65 || (*tick)[i] > 90) {
-            return false
+func calculateStStats(opData *storage.DataOperationType, stateMap storage.DataStateMapType, stStatsMap map[string]*storage.StateStatsType, stRowMapBefore map[string]*storage.DataKvRowType) {
+    keyKRC20 := storage.KeyPrefixStateStats + "_#KRC-20"
+    keys := make([]string, 0, 4)
+    keys = append(keys, keyKRC20)
+    for _, s := range opData.OpScript {
+        if s["tick"] != "" {
+            keys = append(keys, storage.KeyPrefixStateStats +"_"+s["tick"])
         }
     }
-    return true
-}
-////////////////////////////////
-func ValidateTxId(tick *string) (bool) {
-    *tick = strings.ToLower(*tick)
-    if len(*tick) != 64 {
-        return false
+    for k := range opData.SsInfo.TickAffcMap {
+        keys = append(keys, storage.KeyPrefixStateStats +"_"+k)
     }
-    _, err := hex.DecodeString(*tick)
-    if err != nil {
-        return false
+    for k := range opData.SsInfo.AddressAffcMap {
+        keys = append(keys, storage.KeyPrefixStateStats +"_"+k)
     }
-    return true
-}
-////////////////////////////////
-func ValidateTickTxId(tick *string) (bool) {
-    if len(*tick) < 64 {
-        return ValidateTick(tick)
+    for _, k := range keys {
+        if stStatsMap[k] == nil {
+            stStatsMap[k] = &storage.StateStatsType{}
+            if stateMap[k] != nil && stateMap[k]["data"] != "" {
+                dataByte := []byte(stateMap[k]["data"])
+                json.Unmarshal(dataByte, stStatsMap[k])
+                stRowMapBefore[k] = storage.BuildDataKvRow([]byte(k), dataByte)
+            } else {
+                stStatsMap[k].OpTotal = make([]storage.StateStatsOpCountType, 0, 16)
+                stStatsMap[k].HolderTop = make([][2]string, 0, lenHolderTopMax+1)
+                stRowMapBefore[k] = storage.BuildDataKvRow([]byte(k), nil)
+            }
+            stStatsMap[k].OpTotalMap = make(map[string]uint64, 16)
+        }
     }
-    return ValidateTxId(tick)
-}
-////////////////////////////////
-func ValidateAmount(amount *string) (bool) {
-    if *amount == "" {
-        *amount = "0"
-        return false
+    fee, _ := strconv.ParseUint(opData.Tx["fee"], 10, 64)
+    opMod, _ := strconv.ParseUint(opData.Op["score"], 10, 64)
+    stStatsMap[keyKRC20].FeeTotal += fee
+    for _, s := range opData.OpScript {
+        stStatsMap[keyKRC20].OpTotalMap["all"] += 1
+        stStatsMap[keyKRC20].OpTotalMap[s["op"]] += 1
+        if s["op"] == "deploy" {
+            stStatsMap[keyKRC20].TokenTotal += 1
+        }
+        stStatsMap[keyKRC20].OpMod = opMod
+        if s["tick"] == "" {
+            continue
+        }
+        key := storage.KeyPrefixStateStats + "_" + s["tick"]
+        stStatsMap[key].OpTotalMap["all"] += 1
+        stStatsMap[key].OpTotalMap[s["op"]] += 1
+        stStatsMap[key].FeeTotal += fee
+        stStatsMap[key].OpMod = opMod
     }
-    amountBig := new(big.Int)
-    _, s := amountBig.SetString(*amount, 10)
-    if !s {
-        return false
+    for k, v := range opData.SsInfo.TickAffcMap {
+        stStatsMap[keyKRC20].HolderTotal = uint64(int64(stStatsMap[keyKRC20].HolderTotal)+int64(v))
+        key := storage.KeyPrefixStateStats + "_" + k
+        stStatsMap[key].HolderTotal = uint64(int64(stStatsMap[key].HolderTotal)+int64(v))
+        stStatsMap[key].OpMod = opMod
     }
-    amount2 := amountBig.Text(10)
-    if *amount != amount2 {
-        return false
+    for k, v := range opData.SsInfo.AddressAffcMap {
+        key := storage.KeyPrefixStateStats + "_" + k
+        stStatsMap[key].HolderTop = updateStatsHolderTop(stStatsMap[key].HolderTop, v)
+        stStatsMap[key].OpMod = opMod
     }
-    limitBig := new(big.Int)
-    limitBig.SetString("0", 10)
-    if limitBig.Cmp(amountBig) >= 0 {
-        return false
-    }
-    limitBig.SetString("99999999999999999999999999999999", 10)
-    if amountBig.Cmp(limitBig) > 0 {
-        return false
-    }
-    return true
-}
-
-////////////////////////////////
-func ValidateDec(dec *string, def string) (bool) {
-    if *dec == "" {
-        *dec = def
-        return true
-    }
-    decInt, err := strconv.Atoi(*dec)
-    if err != nil {
-        return false
-    }
-    decString := strconv.Itoa(decInt)
-    if (decString != *dec || decInt < 0 || decInt > 18) {
-        return false
-    }
-    return true
 }
 
 ////////////////////////////////
-func ValidationUint(value *string, def string) (bool) {
-    if *value == "" {
-        *value = def
-        return true
+func updateStStats(stStatsMap map[string]*storage.StateStatsType, stRowMapAfter map[string]*storage.DataKvRowType) {
+    for key, stats := range stStatsMap {
+        opList := make([]string, 0, len(stats.OpTotalMap))
+        for op := range stats.OpTotalMap {
+            opList = append(opList, op)
+        }
+        sort.Strings(opList)
+        for _, op := range opList {
+            stats.OpTotal = append(stats.OpTotal, storage.StateStatsOpCountType{
+                Op: op,
+                Count: stats.OpTotalMap[op],
+            })
+        }
+        statsJson, _ := json.Marshal(stats)
+        stRowMapAfter[key] = storage.BuildDataKvRow([]byte(key), statsJson)
     }
-    valueUint, err := strconv.ParseUint(*value, 10, 64)
-    if err != nil {
-        return false
-    }
-    valueString := strconv.FormatUint(valueUint, 10)
-    if (valueString != *value) {
-        return false
-    }
-    return true
-}*/
-
-// ...
+}
