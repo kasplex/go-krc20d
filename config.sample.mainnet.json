@@ -1,8 +1,6 @@
 {
     "startup": {
-        "hysteresis": 3,
-        "daaScoreRange": [],
-        "tickReserved": []
+        "hysteresis": 5
     },
     "cassandra": {
         "host": "",
@@ -14,8 +12,9 @@
     },
     "rocksdb": {
         "path": "./data",
-        "btlIndex": 25920000,
-        "btlFailed": 288000
+        "dtlIndex": 25920000,
+        "dtlFailed": 288000,
+		"indexDisabled": false
     },
     "lyncs": {
         "numSlot": 8,

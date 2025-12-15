@@ -274,6 +274,7 @@ fmt.Println("stateMap["+k+"]: ", v)
             stRowMapAfter = appendStRowList(stRowMapAfter, opData.StRowAfter, true)
         }
         rollback.OpScoreLast, _ = strconv.ParseUint(opData.Op["score"], 10, 64)
+        rollback.TxIdLast = opData.Tx["id"]
     }
     updateStStats(stStatsMap, stRowMapAfter)
     rollback.StRowMapBefore = stRowMapBefore

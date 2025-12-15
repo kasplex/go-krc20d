@@ -25,8 +25,8 @@ type CassaConfig struct {
 }
 type RocksConfig struct {
     Path string `json:"path"`
-    BtlIndex uint64 `json:"btlIndex"`
-    BtlFailed uint64 `json:"btlFailed"`
+    DtlIndex uint64 `json:"dtlIndex"`
+    DtlFailed uint64 `json:"dtlFailed"`
     IndexDisabled bool `json:"indexDisabled"`
 }
 type LyncsConfig struct {

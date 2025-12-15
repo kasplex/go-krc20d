@@ -24,13 +24,16 @@ const KeyPrefixIndexAddress = "iddaddr"
 
 ////////////////////////////////
 func SaveIndexBatchRocks(tx *C.rocksdb_transaction_t, opDataList []DataOperationType) ([]string, error) {
+    if sRuntime.cfgRocks.IndexDisabled {
+        return nil, nil
+    }
     lenOpData := len(opDataList)
     keyList := make([]string, 0, lenOpData*4)
     rowList := make([]*DataKvRowType, 0, lenOpData*4)
     daaScoreList := make([]uint64, 0, lenOpData*4)
-    btlOffset := uint64(0)
-    if sRuntime.cfgRocks.BtlIndex > sRuntime.cfgRocks.BtlFailed {
-        btlOffset = sRuntime.cfgRocks.BtlIndex - sRuntime.cfgRocks.BtlFailed
+    dtlOffset := uint64(0)
+    if sRuntime.cfgRocks.DtlIndex > sRuntime.cfgRocks.DtlFailed {
+        dtlOffset = sRuntime.cfgRocks.DtlIndex - sRuntime.cfgRocks.DtlFailed
     }
     mutex := new(sync.RWMutex)
     misc.GoBatch(lenOpData, func(i int) (error) {
@@ -71,7 +74,7 @@ func SaveIndexBatchRocks(tx *C.rocksdb_transaction_t, opDataList []DataOperation
         }
         daaScore := opScore / 10000
         if opDataList[i].Op["accept"] == "-1" {
-            daaScore -= btlOffset
+            daaScore -= dtlOffset
         }
         mutex.Lock()
         lenAdded := len(rowList)

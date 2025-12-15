@@ -2,7 +2,10 @@
 ////////////////////////////////
 package storage
 
+//#include "rocksdb/c.h"
+import "C"
 import (
+    "sync"
     "kasplex-executor/protowire"
 )
 
@@ -10,6 +13,7 @@ import (
 type DataSyncedType struct {
     Synced bool `json:"synced,omitempty"`
     OpScore uint64 `json:"opscore,omitempty"`
+    TxId string `json:"txid,omitempty"`
     Checkpoint string `json:"checkpoint,omitempty"`
     StCommitment string `json:"stcommitment,omitempty"`
     DaaScore uint64 `json:"daascore,omitempty"`
@@ -48,7 +52,7 @@ type DataOpStateType struct {
 }
 
 ////////////////////////////////
-type IndexOperationType struct {
+type DataIndexOperationType struct {
     State *DataOpStateType `json:"state,omitempty"`
     Script map[string]string `json:"script,omitempty"`
     ScriptEx []map[string]string `json:"Scriptex,omitempty"`
@@ -107,6 +111,7 @@ type StateTokenMetaType struct {
     OpAdd uint64 `json:"opadd,omitempty"`
     MtsAdd int64 `json:"mtsadd,omitempty"`
 }
+
 ////////////////////////////////
 type StateTokenType struct {
     Tick string `json:"tick,omitempty"`
@@ -197,12 +202,13 @@ type DataRollbackType struct {
     StCommitmentBefore string `json:"stcommitmentbefore,omitempty"`
     StCommitmentAfter string `json:"stcommitmentafter,omitempty"`
     OpScoreLast uint64 `json:"opscorelast,omitempty"`
+    TxIdLast string `json:"txidlast,omitempty"`
     StRowMapBefore map[string]*DataKvRowType `json:"strowmapbefore,omitempty"`
     IddKeyList []string `json:"iddkeylist,omitempty"`
 }
 
 ////////////////////////////////
-type DataInputType struct {
+/*type DataInputType struct {
     Hash string
     Index uint
     Amount uint64
@@ -214,6 +220,28 @@ type DataFeeType struct {
     InputList []DataInputType
     AmountOut uint64
     Fee uint64
+}*/
+
+////////////////////////////////
+const (
+    snapshotEMPTY int = iota
+    snapshotCREAT
+    snapshotCONFM
+    snapshotREADY
+    snapshotINUSE
+)
+
+////////////////////////////////
+type SnapshotType struct {
+    sync.Mutex
+    s *C.rocksdb_snapshot_t
+    sn uint64
+    Status int
+    DaaScore uint64
+    TxId string
+    Checkpoint string
+    Confirmed uint64
+    Connected int
 }
 
 // ...

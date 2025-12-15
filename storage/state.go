@@ -111,6 +111,7 @@ func SaveExecutionBatch(opDataList []DataOperationType, stRowMap map[string]*Dat
     stateSynced := &DataSyncedType{
         Synced: synced,
         OpScore: rollback.OpScoreLast,
+        TxId: rollback.TxIdLast,
         Checkpoint: rollback.CheckpointAfter,
         DaaScore: vspcList[lenVspc-1].DaaScore,
         Version: config.Version,

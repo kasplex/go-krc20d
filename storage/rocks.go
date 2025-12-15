@@ -75,8 +75,8 @@ func initRocks() {
     cfOptList[cfState] = C.rocksdb_options_create()
     cfOptList[cfIndex] = C.rocksdb_options_create()
     cFilterList = make([]*C.rocksdb_compactionfilter_t, lenCF)
-    if sRuntime.cfgRocks.BtlIndex > 0 {
-        cFilterList[cfIndex] = C.rocks_newCompactionFilter(C.uint64_t(sRuntime.cfgRocks.BtlIndex))
+    if sRuntime.cfgRocks.DtlIndex > 0 {
+        cFilterList[cfIndex] = C.rocks_newCompactionFilter(C.uint64_t(sRuntime.cfgRocks.DtlIndex))
         C.rocksdb_options_set_compaction_filter(cfOptList[cfIndex], cFilterList[cfIndex])
     }
     cfNameListC := make([]*C.char, lenCF)
@@ -447,15 +447,15 @@ func doGetBatchCF(tx *C.rocksdb_transaction_t, cf int, keyList []string, fGet fu
 }
 
 ////////////////////////////////
-/*func createSnapshot() (*C.rocksdb_snapshot_t, uint64, error) {
-    
-    // ...
-    
+func createSnapshot() (*C.rocksdb_snapshot_t, uint64) {
+    snap := C.rocksdb_transactiondb_create_snapshot(sRuntime.rocks)
+    return snap, uint64(C.rocksdb_snapshot_get_sequence_number(snap))
 }
 
 ////////////////////////////////
 func destroySnapshot(snap *C.rocksdb_snapshot_t) {
-    
-    // ...
-    
-}*/
+    if snap == nil {
+        return
+    }
+    C.rocksdb_transactiondb_release_snapshot(sRuntime.rocks, snap)
+}

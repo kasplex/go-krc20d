@@ -21,6 +21,7 @@ type runtimeType struct {
     vspcList []storage.DataVspcType
     rollbackList []storage.DataRollbackType
     opScoreLast uint64
+    txIdLast string
     synced bool
     testnet bool
 }
@@ -84,6 +85,7 @@ func initRuntime(startup bool) (error) {
     indexRollback := len(eRuntime.rollbackList) - 1
     if indexRollback >= 0 {
         eRuntime.opScoreLast = eRuntime.rollbackList[indexRollback].OpScoreLast
+        eRuntime.txIdLast = eRuntime.rollbackList[indexRollback].TxIdLast
     }
     stateContractMap := map[string]*storage.StateContractType{}
     if startup {

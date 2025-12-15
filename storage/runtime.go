@@ -12,7 +12,7 @@ import (
 )
 
 ////////////////////////////////
-const btlIndexRuntime = 864000
+const dtlIndexRuntime = 864000
 const keyPrefixRuntimeVspc = "rtdvspc"
 const keyPrefixRuntimeRollback = "rtdrollback"
 const keyPrefixRuntimeSynced = "rtdsynced"
@@ -80,10 +80,10 @@ func SetRuntimeVspcLast(tx *C.rocksdb_transaction_t, list []DataVspcType) (error
             return err
         }
         daaScore := list[i].DaaScore
-        if btlIndexRuntime > sRuntime.cfgRocks.BtlIndex {
-            daaScore += btlIndexRuntime - sRuntime.cfgRocks.BtlIndex
+        if dtlIndexRuntime > sRuntime.cfgRocks.DtlIndex {
+            daaScore += dtlIndexRuntime - sRuntime.cfgRocks.DtlIndex
         } else {
-            daaScore -= sRuntime.cfgRocks.BtlIndex - btlIndexRuntime
+            daaScore -= sRuntime.cfgRocks.DtlIndex - dtlIndexRuntime
         }
         err = putCF(tx, cfIndex, []byte(key), val, daaScore)
         if err != nil {
@@ -130,10 +130,10 @@ func SetRuntimeRollbackLast(tx *C.rocksdb_transaction_t, rollback *DataRollbackT
         return err
     }
     daaScore := rollback.DaaScoreEnd
-    if btlIndexRuntime > sRuntime.cfgRocks.BtlIndex {
-        daaScore += btlIndexRuntime - sRuntime.cfgRocks.BtlIndex
+    if dtlIndexRuntime > sRuntime.cfgRocks.DtlIndex {
+        daaScore += dtlIndexRuntime - sRuntime.cfgRocks.DtlIndex
     } else {
-        daaScore -= sRuntime.cfgRocks.BtlIndex - btlIndexRuntime
+        daaScore -= sRuntime.cfgRocks.DtlIndex - dtlIndexRuntime
     }
     return putCF(tx, cfIndex, []byte(key), val, daaScore)
 }

@@ -46,7 +46,7 @@ func ConvIndexOpDataToKvRow(key string, opData *DataOperationType) (*DataKvRowTy
         Checkpoint: opData.Checkpoint,
         StCommitment: opData.StCommitment,
     }
-    data := &IndexOperationType{
+    data := &DataIndexOperationType{
         State: state,
         Script: opData.OpScript[0],
         StBefore: opData.StBefore,

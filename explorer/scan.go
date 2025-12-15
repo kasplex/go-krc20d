@@ -87,6 +87,9 @@ func scan() {
             log.Fatalln("explorer.initRuntime fatal: ", err)
             return
         }
+        
+        // err = ProcessISD(??) ..
+        
         slog.Info("explorer.checkRollback", "start/rollback", strconv.FormatUint(daaScoreStart,10)+"/"+strconv.FormatUint(daaScoreRollback,10), "mSecond", strconv.Itoa(int(mtsRollback)))
         return
     } else if vspcListNext == nil {
@@ -180,8 +183,10 @@ func scan() {
     }
     if rollback.OpScoreLast == 0 {
         rollback.OpScoreLast = eRuntime.opScoreLast
+        rollback.TxIdLast = eRuntime.txIdLast
     } else {
         eRuntime.opScoreLast = rollback.OpScoreLast
+        eRuntime.txIdLast = rollback.TxIdLast
     }
     slog.Debug("operation.ExecuteBatch", "checkpoint", rollback.CheckpointAfter, "lenOperation/mSecond", strconv.Itoa(len(opDataList))+"/"+strconv.Itoa(int(mtsBatchExe)))
     eRuntime.synced = false
@@ -246,6 +251,8 @@ var input string
 fmt.Println("Press any Key to Continue ..")
 fmt.Scanln(&input)
 ////////////////////////////
+
+    // err = ProcessISD(0) ..
     
     // Additional delay if state synced.
     mtsLoop := time.Now().UnixMilli() - mtss

@@ -8,7 +8,7 @@
 uint64_t rocks_daaScoreLatest = 0;
 
 typedef struct {
-  uint64_t btl;
+  uint64_t dtl;
 } rocks_filterArg_t;
 
 static void rocks_filterDestroy(void* arg) { free(arg); }
@@ -19,15 +19,15 @@ static unsigned char rocks_filterFilter(void* arg, int level, const char* key, s
   if (arg==NULL) return 0;
   if (value_length<8) return 1;
   rocks_filterArg_t* filterArg = (rocks_filterArg_t*)arg;
-  if (rocks_daaScoreLatest==0 || filterArg->btl==0) return 0;
+  if (rocks_daaScoreLatest==0 || filterArg->dtl==0) return 0;
   uint64_t daaScore;
   memcpy(&daaScore, existing_value, 8);
-  if (rocks_daaScoreLatest>daaScore && daaScore>0 && rocks_daaScoreLatest-daaScore>filterArg->btl) return 1;
+  if (rocks_daaScoreLatest>daaScore && daaScore>0 && rocks_daaScoreLatest-daaScore>filterArg->dtl) return 1;
   return 0;
 }
 
-static rocksdb_compactionfilter_t* rocks_newCompactionFilter(uint64_t btl) {
+static rocksdb_compactionfilter_t* rocks_newCompactionFilter(uint64_t dtl) {
   rocks_filterArg_t* arg = (rocks_filterArg_t*)malloc(sizeof(rocks_filterArg_t));
-  arg->btl = btl;
+  arg->dtl = dtl;
   return rocksdb_compactionfilter_create(arg, rocks_filterDestroy, rocks_filterFilter, rocks_filterName);
 }

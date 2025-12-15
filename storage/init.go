@@ -20,6 +20,7 @@ type runtimeType struct {
     sessionCassa *gocql.Session
     rocks *C.rocksdb_transactiondb_t
     cfHandleList []*C.rocksdb_column_family_handle_t
+    snapshot SnapshotType
 }
 var sRuntime runtimeType
 
@@ -37,6 +38,7 @@ func Init(cfgCassa config.CassaConfig, cfgRocks config.RocksConfig) {
 ////////////////////////////////
 func Destroy() {
     destroyCassa()
+    releaseISD()
     destroyRocks()
     slog.Info("storage released.")
 }
