@@ -7,7 +7,6 @@ import (
     "sort"
     "strconv"
     "strings"
-    "encoding/json"
     "github.com/gocql/gocql"
     "kasplex-executor/protowire"
 )

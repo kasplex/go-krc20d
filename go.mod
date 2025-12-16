@@ -6,6 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/gocql/gocql v1.7.0
+	github.com/json-iterator/go v1.1.12
 	github.com/kaspanet/go-muhash v0.0.4
 	github.com/kasplex/go-lyncs v0.0.0-20251206124503-df3d34ca0d58
 	golang.org/x/crypto v0.46.0
@@ -17,6 +18,8 @@ require (
 require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect

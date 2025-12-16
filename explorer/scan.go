@@ -224,7 +224,7 @@ func scan() {
     }
     
 ////////////////////////////
-fmt.Println("Execution Batch - ", "daaScore: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, "checkpoint: ", rollback.CheckpointBefore, rollback.CheckpointAfter, "stCommitment: ", fmt.Sprintf("%0384x", rollback.StCommitmentBefore), fmt.Sprintf("%0384x", rollback.StCommitmentAfter), "opScoreLast: ", rollback.OpScoreLast, "size: ", len(rollback.StRowMapBefore), len(rollback.IddKeyList))
+fmt.Println("Execution Batch - ", "daaScore: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, "checkpoint: ", rollback.CheckpointBefore, rollback.CheckpointAfter, "stCommitment: ", rollback.StCommitmentBefore, rollback.StCommitmentAfter, "opScoreLast: ", rollback.OpScoreLast, "size: ", len(rollback.StRowMapBefore), len(rollback.IddKeyList))
 fmt.Println("")
 url := "https://api-24353568745345.kasplex.org/v1/krc20/op/"+strconv.FormatUint(rollback.OpScoreLast,10)
 fmt.Println("Checking: ", url)

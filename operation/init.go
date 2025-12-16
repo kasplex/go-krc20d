@@ -13,10 +13,11 @@ import (
     "strings"
     "log/slog"
     "math/big"
-    "encoding/json"
+    "encoding/hex"
     "golang.org/x/crypto/blake2b"
     "github.com/kasplex/go-lyncs"
     "github.com/kaspanet/go-muhash"
+    jsoniter "github.com/json-iterator/go"
     "kasplex-executor/config"
     "kasplex-executor/misc"
     "kasplex-executor/storage"
@@ -26,6 +27,9 @@ import (
 var builtinKrc20 string
 //go:embed contract/KRC-20/*.lua
 var fsGenesis embed.FS
+
+////////////////////////////////
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 const lenHolderTopMax = 200
@@ -264,11 +268,11 @@ fmt.Println("stateMap["+k+"]: ", v)
     stRowMapAfter := make(map[string]*storage.DataKvRowType, lenOp*4)
     stStatsMap := make(map[string]*storage.StateStatsType, 16)
     var mhState *muhash.MuHash
-    stCommitmentLastByte := []byte(stCommitmentLast)
-    if len(stCommitmentLastByte) > 0 {
+    if len(stCommitmentLast) > 0 {
         var err error
         var mhSerialized muhash.SerializedMuHash
-        copy(mhSerialized[:], stCommitmentLastByte)
+        mhByte, _ := hex.DecodeString(stCommitmentLast)
+        copy(mhSerialized[:], mhByte)
         mhState, err = muhash.DeserializeMuHash(&mhSerialized)
         if err != nil {
             return rollback, nil, 0, err
@@ -289,8 +293,8 @@ fmt.Println("stateMap["+k+"]: ", v)
                         
             mhState.Combine(opData.MhState)
             mhSerialized := mhState.Serialize()
-            stCommitmentLastByte = (*mhSerialized)[:]
-            opData.StCommitment = string(stCommitmentLastByte)
+            opData.StCommitment = fmt.Sprintf("%0384x", string((*mhSerialized)[:]))
+            stCommitmentLast = opData.StCommitment
             
             // replace to StCommitment in Checkpoint In the future HF ...
             
@@ -308,7 +312,7 @@ fmt.Println("stateMap["+k+"]: ", v)
     updateStStats(stStatsMap, stRowMapAfter)
     rollback.StRowMapBefore = stRowMapBefore
     rollback.CheckpointAfter = checkpointLast
-    rollback.StCommitmentAfter = string(stCommitmentLastByte)
+    rollback.StCommitmentAfter = stCommitmentLast
 
 fmt.Println("mts = ", time.Now().UnixMilli())
         

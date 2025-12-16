@@ -11,11 +11,14 @@ import (
     "unicode"
     "math/big"
     "encoding/hex"
-    "encoding/json"
     "github.com/kasplex/go-lyncs"
+    jsoniter "github.com/json-iterator/go"
     "kasplex-executor/misc"
     "kasplex-executor/storage"
 )
+
+////////////////////////////////
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 // Parse the P2SH transaction input script.

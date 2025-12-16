@@ -9,8 +9,12 @@ import (
     "log/slog"
     "math/rand"
     "github.com/gocql/gocql"
+    jsoniter "github.com/json-iterator/go"
     "kasplex-executor/config"
 )
+
+////////////////////////////////
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 type runtimeType struct {

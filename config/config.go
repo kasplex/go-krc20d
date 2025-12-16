@@ -5,8 +5,11 @@ package config
 import (
     "os"
     "log"
-    "encoding/json"
+    jsoniter "github.com/json-iterator/go"
 )
+
+////////////////////////////////
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 type StartupConfig struct {
