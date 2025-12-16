@@ -16,6 +16,7 @@ import (
     "encoding/json"
     "golang.org/x/crypto/blake2b"
     "github.com/kasplex/go-lyncs"
+    "github.com/kaspanet/go-muhash"
     "kasplex-executor/config"
     "kasplex-executor/misc"
     "kasplex-executor/storage"
@@ -229,6 +230,13 @@ fmt.Println("mts = ", time.Now().UnixMilli())
             opData.StBefore, opData.StRowBefore, stMapBefore = mergeStLineMap(stLineBeforeMap[opData.Op["score"]], stRowBeforeMap[opData.Op["score"]], false)
             opData.StAfter, opData.StRowAfter, stMapAfter = mergeStLineMap(stLineAfterMap[opData.Op["score"]], stRowAfterMap[opData.Op["score"]], true)
             opData.SsInfo = countStLine(stMapBefore, stMapAfter)
+            opData.MhState = muhash.NewMuHash()
+            for _, row := range opData.StRowBefore {
+                opData.MhState.Remove(*row.P)
+            }
+            for _, row := range opData.StRowAfter {
+                opData.MhState.Add(*row.P)
+            }
         }
         return nil
     })
@@ -255,8 +263,19 @@ fmt.Println("stateMap["+k+"]: ", v)
     stRowMapBefore := make(map[string]*storage.DataKvRowType, lenOp*4)
     stRowMapAfter := make(map[string]*storage.DataKvRowType, lenOp*4)
     stStatsMap := make(map[string]*storage.StateStatsType, 16)
+    var mhState *muhash.MuHash
     stCommitmentLastByte := []byte(stCommitmentLast)
-    mhQueue := misc.MuHashNew(1024)
+    if len(stCommitmentLastByte) > 0 {
+        var err error
+        var mhSerialized muhash.SerializedMuHash
+        copy(mhSerialized[:], stCommitmentLastByte)
+        mhState, err = muhash.DeserializeMuHash(&mhSerialized)
+        if err != nil {
+            return rollback, nil, 0, err
+        }
+    } else {
+        mhState = muhash.NewMuHash()
+    }
     for i := range opDataList {
         opData := &opDataList[i]
         if opData.Op["accept"] == "1" {
@@ -267,15 +286,10 @@ fmt.Println("stateMap["+k+"]: ", v)
             cpState := strings.Join(opData.StAfter, ";")
             sum = blake2b.Sum256([]byte(cpState))
             cpState = fmt.Sprintf("%064x", string(sum[:]))
-            
-            mhQueue = mhQueue[:0]
-            for _, row := range opData.StRowBefore {
-                mhQueue = misc.MuHashRemove(mhQueue, *row.P)
-            }
-            for _, row := range opData.StRowAfter {
-                mhQueue = misc.MuHashAdd(mhQueue, *row.P)
-            }
-            stCommitmentLastByte, _ = misc.MuHashSerialize(stCommitmentLastByte, mhQueue, false)
+                        
+            mhState.Combine(opData.MhState)
+            mhSerialized := mhState.Serialize()
+            stCommitmentLastByte = (*mhSerialized)[:]
             opData.StCommitment = string(stCommitmentLastByte)
             
             // replace to StCommitment in Checkpoint In the future HF ...

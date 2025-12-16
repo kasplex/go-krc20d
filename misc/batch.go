@@ -8,7 +8,7 @@ import (
 )
 
 ////////////////////////////////
-const nGoroutine = 16
+const nGoroutine = 8
 
 ////////////////////////////////
 func GoBatch(lenBatch int, fGo func(int,int) (error)) (int64, error) {

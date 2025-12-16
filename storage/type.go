@@ -6,6 +6,7 @@ package storage
 import "C"
 import (
     "sync"
+    "github.com/kaspanet/go-muhash"
     "kasplex-executor/protowire"
 )
 
@@ -95,6 +96,7 @@ type DataOperationType struct {
     Checkpoint string
     StCommitment string
     SsInfo *DataStatsType
+    MhState *muhash.MuHash
 }
 
 ////////////////////////////////

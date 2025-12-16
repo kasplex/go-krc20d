@@ -29,7 +29,7 @@ const (
     cfState = iota
     cfIndex
 )
-const nGetRocks = 16
+const nGetRocks = 32
 
 ////////////////////////////////
 var rOpt *C.rocksdb_readoptions_t
