@@ -208,21 +208,6 @@ type DataRollbackType struct {
 }
 
 ////////////////////////////////
-/*type DataInputType struct {
-    Hash string
-    Index uint
-    Amount uint64
-}
-
-////////////////////////////////
-type DataFeeType struct {
-    Txid string
-    InputList []DataInputType
-    AmountOut uint64
-    Fee uint64
-}*/
-
-////////////////////////////////
 const (
     snapshotEMPTY int = iota
     snapshotCREAT

@@ -109,10 +109,11 @@ func PrepareStateBatch(stateMap storage.DataStateMapType) (int64, error) {
 }
 
 ////////////////////////////////
-func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataStateMapType, checkpointLast string, testnet bool) (storage.DataRollbackType, map[string]*storage.DataKvRowType, int64, error) {
+func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataStateMapType, checkpointLast string, stCommitmentLast string, testnet bool) (storage.DataRollbackType, map[string]*storage.DataKvRowType, int64, error) {
     mtss := time.Now().UnixMilli()
     rollback := storage.DataRollbackType{
         CheckpointBefore: checkpointLast,
+        StCommitmentBefore: stCommitmentLast,
     }
     lenOp := len(opDataList)
     if len(opDataList) <= 0 {
@@ -199,7 +200,7 @@ fmt.Println("error: ", err.Error())
 
 fmt.Println("mts = ", time.Now().UnixMilli())
     
-    misc.GoBatch(len(opDataList), func(i int) (error) {
+    misc.GoBatch(len(opDataList), func(i int, iBatch int) (error) {
         opData := &opDataList[i]
         iScriptAccept := -1
         opError := ""
@@ -254,20 +255,34 @@ fmt.Println("stateMap["+k+"]: ", v)
     stRowMapBefore := make(map[string]*storage.DataKvRowType, lenOp*4)
     stRowMapAfter := make(map[string]*storage.DataKvRowType, lenOp*4)
     stStatsMap := make(map[string]*storage.StateStatsType, 16)
+    stCommitmentLastByte := []byte(stCommitmentLast)
+    mhQueue := misc.MuHashNew(1024)
     for i := range opDataList {
         opData := &opDataList[i]
         if opData.Op["accept"] == "1" {
             cpHeader := opData.Op["score"] +","+ opData.Tx["id"] +","+ opData.Block["hash"] +","+ opData.OpScript[0]["p"] +","+ opData.OpScript[0]["op"]
             sum := blake2b.Sum256([]byte(cpHeader))
             cpHeader = fmt.Sprintf("%064x", string(sum[:]))
+            
             cpState := strings.Join(opData.StAfter, ";")
             sum = blake2b.Sum256([]byte(cpState))
             cpState = fmt.Sprintf("%064x", string(sum[:]))
             
-            // opData.StCommitment ...
+            mhQueue = mhQueue[:0]
+            for _, row := range opData.StRowBefore {
+                mhQueue = misc.MuHashRemove(mhQueue, *row.P)
+            }
+            for _, row := range opData.StRowAfter {
+                mhQueue = misc.MuHashAdd(mhQueue, *row.P)
+            }
+            stCommitmentLastByte, _ = misc.MuHashSerialize(stCommitmentLastByte, mhQueue, false)
+            opData.StCommitment = string(stCommitmentLastByte)
+            
+            // replace to StCommitment in Checkpoint In the future HF ...
             
             sum = blake2b.Sum256([]byte(checkpointLast + cpHeader + cpState))
             opData.Checkpoint = fmt.Sprintf("%064x", string(sum[:]))
+            
             checkpointLast = opData.Checkpoint
             calculateStStats(opData, stateMap, stStatsMap, stRowMapBefore)
             stRowMapBefore = appendStRowList(stRowMapBefore, opData.StRowBefore, false)
@@ -279,6 +294,7 @@ fmt.Println("stateMap["+k+"]: ", v)
     updateStStats(stStatsMap, stRowMapAfter)
     rollback.StRowMapBefore = stRowMapBefore
     rollback.CheckpointAfter = checkpointLast
+    rollback.StCommitmentAfter = string(stCommitmentLastByte)
 
 fmt.Println("mts = ", time.Now().UnixMilli())
         

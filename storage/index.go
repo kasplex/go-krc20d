@@ -36,7 +36,7 @@ func SaveIndexBatchRocks(tx *C.rocksdb_transaction_t, opDataList []DataOperation
         dtlOffset = sRuntime.cfgRocks.DtlIndex - sRuntime.cfgRocks.DtlFailed
     }
     mutex := new(sync.RWMutex)
-    misc.GoBatch(lenOpData, func(i int) (error) {
+    misc.GoBatch(lenOpData, func(i int, iBatch int) (error) {
         txIdByte := unsafe.Slice(unsafe.StringData(opDataList[i].Tx["id"]), len(opDataList[i].Tx["id"]))
         keyOpTxid := KeyPrefixIndexOpTxid + "_" + opDataList[i].Tx["id"]
         opScore, _ := strconv.ParseUint(opDataList[i].Op["score"], 10, 64)

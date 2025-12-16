@@ -139,6 +139,7 @@ func RollbackExecutionBatch(daaScore uint64, vspcList []DataVspcType) (int64, er
     mtss := time.Now().UnixMilli()
     stRowMap := make(map[string]*DataKvRowType, 128)
     deleteList := make([][]byte, 0, 128)
+    // get rollback/vspc first to check and avoid delete all ..
     daaScoreStart := daaScore
     var keyEnd []byte
     for {

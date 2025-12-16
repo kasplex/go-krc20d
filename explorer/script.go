@@ -366,7 +366,7 @@ func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOp
     txIdMap := make(map[string]bool, lenTx)
     callInitList := make([]lyncs.DataCallFuncType, 0, lenTx*12/10)
     mutex := new(sync.RWMutex)
-    misc.GoBatch(lenTx, func(i int) (error) {
+    misc.GoBatch(lenTx, func(i int, iBatch int) (error) {
         callList := parseOpData(&txDataList[i])
         if len(callList) <= 0 {
             return nil

@@ -19,7 +19,7 @@ func RequestISD() (uint64, uint64, error) {
         if sRuntime.snapshot.Status == snapshotEMPTY {
             sRuntime.snapshot.Status = snapshotCREAT
         }
-        return 0, fmt.Errorf("preparing isd")
+        return 0, 0, fmt.Errorf("preparing isd")
     }
     sRuntime.snapshot.Connected ++
     return sRuntime.snapshot.sn, sRuntime.snapshot.DaaScore, nil

@@ -167,10 +167,13 @@ func scan() {
     slog.Debug("operation.PrepareStateBatch", "lenState/mSecond", strconv.Itoa(len(stateMap))+"/"+strconv.Itoa(int(mtsBatchSt)))
     // Execute the op list and generate the rollback data.
     checkpointLast := ""
-    if len(eRuntime.rollbackList) > 0 {
-        checkpointLast = eRuntime.rollbackList[len(eRuntime.rollbackList)-1].CheckpointAfter
+    stCommitmentLast := ""
+    lenRollbackList := len(eRuntime.rollbackList)
+    if lenRollbackList > 0 {
+        checkpointLast = eRuntime.rollbackList[lenRollbackList-1].CheckpointAfter
+        stCommitmentLast = eRuntime.rollbackList[lenRollbackList-1].StCommitmentAfter
     }
-    rollback, stRowMap, mtsBatchExe, err := operation.ExecuteBatch(opDataList, stateMap, checkpointLast, eRuntime.testnet)
+    rollback, stRowMap, mtsBatchExe, err := operation.ExecuteBatch(opDataList, stateMap, checkpointLast, stCommitmentLast, eRuntime.testnet)
     if err != nil {
         slog.Warn("operation.ExecuteBatch failed, sleep 3s.", "error", err.Error())
         time.Sleep(3000*time.Millisecond)
@@ -221,7 +224,7 @@ func scan() {
     }
     
 ////////////////////////////
-fmt.Println("Execution Batch - ", "daaScore: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, "checkpoint: ", rollback.CheckpointBefore, rollback.CheckpointAfter, "opScoreLast: ", rollback.OpScoreLast, "size: ", len(rollback.StRowMapBefore), len(rollback.IddKeyList))
+fmt.Println("Execution Batch - ", "daaScore: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, "checkpoint: ", rollback.CheckpointBefore, rollback.CheckpointAfter, "stCommitment: ", fmt.Sprintf("%0384x", rollback.StCommitmentBefore), fmt.Sprintf("%0384x", rollback.StCommitmentAfter), "opScoreLast: ", rollback.OpScoreLast, "size: ", len(rollback.StRowMapBefore), len(rollback.IddKeyList))
 fmt.Println("")
 url := "https://api-24353568745345.kasplex.org/v1/krc20/op/"+strconv.FormatUint(rollback.OpScoreLast,10)
 fmt.Println("Checking: ", url)

@@ -11,7 +11,7 @@ import (
 const nGoroutine = 16
 
 ////////////////////////////////
-func GoBatch(lenBatch int, fGo func(int) (error)) (int64, error) {
+func GoBatch(lenBatch int, fGo func(int,int) (error)) (int64, error) {
     if lenBatch <= 0 {
         return 0, nil
     }
@@ -25,7 +25,7 @@ func GoBatch(lenBatch int, fGo func(int) (error)) (int64, error) {
                 if j >= lenBatch {
                     break
                 }
-                err := fGo(j)
+                err := fGo(j, index)
                 if err != nil {
                     return err
                 }
