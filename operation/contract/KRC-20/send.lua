@@ -91,6 +91,7 @@ function run()
 
 	stBlanceFrom.locked = tostring(locked:sub(amt))
 	stBlanceTo.balance = tostring(amt:add(mpz.new(stBlanceTo.balance,10)))
+	-- opmod todo fix ..
 	stMarket = {}
 
 	if stBlanceFrom.balance=="0" and stBlanceFrom.locked=="0" then

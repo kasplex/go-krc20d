@@ -140,7 +140,7 @@ func SetRuntimeRollbackLast(tx *C.rocksdb_transaction_t, rollback *DataRollbackT
 ////////////////////////////////
 // Get the sync state.
 func GetRuntimeSynced() (*DataSyncedType, error) {
-    val, err := getCF(nil, cfIndex, []byte(keyPrefixRuntimeSynced))
+    val, err := getCF(nil, cfIndex, []byte(keyPrefixRuntimeSynced), nil)
     if err != nil {
         return nil, err
     }

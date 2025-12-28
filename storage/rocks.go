@@ -19,12 +19,6 @@ import (
 )
 
 ////////////////////////////////
-type rowRocksType struct {
-    valC *C.char
-    data []byte
-}
-
-////////////////////////////////
 const (
     cfState = iota
     cfIndex
@@ -192,37 +186,45 @@ func destroyRocks() {
 }
 
 ////////////////////////////////
-func getCF(tx *C.rocksdb_transaction_t, cf int, key []byte) ([]byte, error) {
+func getCF(tx *C.rocksdb_transaction_t, cf int, key []byte, fGet func([]byte) (error)) ([]byte, error) {
     lenKey := len(key)
     if lenKey == 0 {
         return nil, nil
     }
     var lenValC C.size_t
     var errC *C.char
-    row := &rowRocksType{}
+    var rowValC *C.char
+    var rowData []byte
     if tx != nil {
-        row.valC = C.rocksdb_transaction_get_cf(tx, rOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), &lenValC, &errC)
+        rowValC = C.rocksdb_transaction_get_cf(tx, rOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), &lenValC, &errC)
     } else {
-        row.valC = C.rocksdb_transactiondb_get_cf(sRuntime.rocks, rOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), &lenValC, &errC)
+        rowValC = C.rocksdb_transactiondb_get_cf(sRuntime.rocks, rOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), &lenValC, &errC)
     }
+    runtime.KeepAlive(key)
     if errC != nil {
         return nil, errRocks(errC)
     }
-    if row.valC == nil {
+    if rowValC == nil {
         return nil, nil
     }
-    runtime.AddCleanup(row, func(p *C.char) { C.rocksdb_free(unsafe.Pointer(p)) }, row.valC)
+    defer C.rocksdb_free(unsafe.Pointer(rowValC))
     lenVal := int(lenValC)
     if lenVal == 0 || cf > 0 && lenVal <= 8 {
-        row.data = []byte{}
-        return row.data, nil
-    }
-    if cf > 0 {
-        row.data = unsafe.Slice((*byte)(unsafe.Add(unsafe.Pointer(row.valC),8)), lenVal-8)
+        rowData = []byte{}
     } else {
-        row.data = unsafe.Slice((*byte)(unsafe.Pointer(row.valC)), lenVal)
+        if cf > 0 {
+            rowData = unsafe.Slice((*byte)(unsafe.Add(unsafe.Pointer(rowValC),8)), lenVal-8)
+        } else {
+            rowData = unsafe.Slice((*byte)(unsafe.Pointer(rowValC)), lenVal)
+        }
     }
-    return row.data, nil
+    if fGet != nil {
+        err := fGet(rowData)
+        return nil, err
+    }
+    data := make([]byte, len(rowData))
+    copy(data, rowData)
+    return data, nil
 }
 
 ////////////////////////////////
@@ -310,6 +312,8 @@ func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte,
         }
     }
     C.rocksdb_iter_get_error(iter, &errC)
+    runtime.KeepAlive(keyStart)
+    runtime.KeepAlive(keyEnd)
     if errC != nil {
         return errRocks(errC)
     }
@@ -342,12 +346,18 @@ func putCF(tx *C.rocksdb_transaction_t, cf int, key []byte, val []byte, ds uint6
         *(*uint64)(unsafe.Pointer(&data[0])) = ds
         lenVal = 8
     }
+    var dataC *C.char
+    if lenVal > 0 {
+        dataC = (*C.char)(unsafe.Pointer(&data[0]))
+    }
     var errC *C.char
     if tx != nil {
-        C.rocksdb_transaction_put_cf(tx, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), (*C.char)(unsafe.Pointer(&data[0])), C.size_t(lenVal), &errC)
+        C.rocksdb_transaction_put_cf(tx, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), dataC, C.size_t(lenVal), &errC)
     } else {
-        C.rocksdb_transactiondb_put_cf(sRuntime.rocks, wOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), (*C.char)(unsafe.Pointer(&data[0])), C.size_t(lenVal), &errC)
+        C.rocksdb_transactiondb_put_cf(sRuntime.rocks, wOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), dataC, C.size_t(lenVal), &errC)
     }
+    runtime.KeepAlive(key)
+    runtime.KeepAlive(data)
     if errC != nil {
         return errRocks(errC)
     }
@@ -366,6 +376,7 @@ func deleteCF(tx *C.rocksdb_transaction_t, cf int, key []byte) (error) {
     } else {
         C.rocksdb_transactiondb_delete_cf(sRuntime.rocks, wOpt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&key[0])), C.size_t(lenKey), &errC)
     }
+    runtime.KeepAlive(key)
     if errC != nil {
         return errRocks(errC)
     }
@@ -431,11 +442,14 @@ func doGetBatchCF(tx *C.rocksdb_transaction_t, cf int, keyList []string, fGet fu
             index := j
             key := []byte(keyList[index])
             g.Go(func() error {
-                val, err := getCF(tx, cf, key)
-                if err != nil {
+                _, err := getCF(tx, cf, key, func(val []byte) (error) {
+                    return fGet(index, val)
+                })
+                return err
+                /*if err != nil {
                     return err
                 }
-                return fGet(index, val)
+                return fGet(index, val)*/
             })
         }
         err := g.Wait()
