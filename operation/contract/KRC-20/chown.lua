@@ -5,16 +5,19 @@ function init()
 	if ds:cmp(110165000)<0 then
 		return krc20.fail("out of range")
 	end
-
+	
 	local sp = session.opParams
+	if sp.to=="" then
+		return krc20.fail("address invalid")
+	end
+
 	local tick = sp.tick
 	local opr = {
-		tick = "tick,r",
+		tick = "ticktxid,r",
 		to = "addr,o",
 	}
 	if sp.ca~=nil then
 		tick = sp.ca
-		opr.tick = "txid,r"
 	end
 
 	return krc20.succ({

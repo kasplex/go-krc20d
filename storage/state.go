@@ -37,11 +37,11 @@ func GetStateBatch(stateMap DataStateMapType) (int64, error) {
         keyList = append(keyList, key)
     }
     mutex := new(sync.RWMutex)
-    mtsBatch, err := doGetBatchCF(nil, 0, keyList, func(i int, data []byte) (error) {
-        if data == nil {
+    mtsBatch, err := doGetBatchCF(nil, cfState, keyList, func(i int, val []byte) (error) {
+        if val == nil {
             return nil
         }
-        decoded, err := ConvStateToStringMap(keyList[i], data)
+        decoded, err := ConvStateToStringMap(keyList[i], val)
         if err != nil {
             return err
         }
@@ -135,7 +135,7 @@ func SaveExecutionBatch(opDataList []DataOperationType, stRowMap map[string]*Dat
 }
 
 ////////////////////////////////
-func RollbackExecutionBatch(daaScore uint64, vspcList []DataVspcType) (int64, error) {
+func RollbackExecutionBatch(daaScore uint64) (int64, error) {
     mtss := time.Now().UnixMilli()
     stRowMap := make(map[string]*DataKvRowType, 128)
     deleteList := make([][]byte, 0, 128)
@@ -181,8 +181,10 @@ func RollbackExecutionBatch(daaScore uint64, vspcList []DataVspcType) (int64, er
     }
     for _, key := range deleteList {
         err = deleteCF(tx, cfIndex, key)
-        txRollback(tx)
-        return 0, err
+        if err != nil {
+            txRollback(tx)
+            return 0, err
+        }
     }
     err = txCommit(tx, true)
     if err != nil {

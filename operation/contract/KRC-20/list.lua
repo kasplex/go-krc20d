@@ -10,17 +10,16 @@ function init()
 	local tick = sp.tick
 	local utxo = ""
 	local opr = {
-		tick = "tick,r",
+		tick = "ticktxid,r",
 		amt = "amt,r",
 		utxo = "ascii,r",
 	}
 	if sp.ca~=nil then
 		tick = sp.ca
-		opr.tick = "txid,r"
 	end
 
 	if #session.txOutputs>0 then
-		utxo = session.tx.id.."_"..session.txOutputs[0].address.."_"..session.txOutputs[0].amount
+		utxo = session.tx.id.."_"..session.txOutputs[1].address.."_"..session.txOutputs[1].amount
 	end
 
 	return krc20.succ({

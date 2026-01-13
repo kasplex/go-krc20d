@@ -5,8 +5,8 @@ package explorer
 import (
     "fmt"
     "sync"
-    "context"
     "time"
+    "context"
     "log/slog"
     "kasplex-executor/config"
     "kasplex-executor/storage"
@@ -34,7 +34,7 @@ var daaScoreRange = [][2]uint64{
 }
 
 ////////////////////////////////
-const lenVspcListMax = 1200
+const lenVspcListMax = 1000
 const lenVspcListRuntimeMax = 2400
 const lenVspcCheck = 200
 const lenReorgDaaScoreMax = 864000

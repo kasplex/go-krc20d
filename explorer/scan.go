@@ -8,10 +8,13 @@ import (
     "io"
     "strings"
     "net/http"
+    "syscall"
+    "os"
     
     "log"
     "time"
     "strconv"
+    "runtime"
     "log/slog"
     "kasplex-executor/storage"
     "kasplex-executor/operation"
@@ -23,6 +26,7 @@ var lenVspcBatch = uint64(lenVspcListMax - lenVspcCheck)
 
 ////////////////////////////////
 func scan() {
+    
     mtss := time.Now().UnixMilli()
     
     // Get the next vspc data list.
@@ -76,7 +80,7 @@ func scan() {
     daaScoreRollback, vspcListNext := checkRollback(eRuntime.vspcList, vspcListNext, daaScoreStart)
     if daaScoreRollback > 0 {
         mtsRollback := int64(0)
-        mtsRollback, err = storage.RollbackExecutionBatch(daaScoreRollback, eRuntime.vspcList)
+        mtsRollback, err = storage.RollbackExecutionBatch(daaScoreRollback)
         if err != nil {
             slog.Warn("storage.RollbackExecutionBatch failed, sleep 3s.", "error", err.Error())
             time.Sleep(3000*time.Millisecond)
@@ -90,7 +94,7 @@ func scan() {
         
         // err = ProcessISD(??) ..
         
-        slog.Info("explorer.checkRollback", "start/rollback", strconv.FormatUint(daaScoreStart,10)+"/"+strconv.FormatUint(daaScoreRollback,10), "mSecond", strconv.Itoa(int(mtsRollback)))
+        slog.Info("storage.RollbackExecutionBatch", "start/rollback", strconv.FormatUint(daaScoreStart,10)+"/"+strconv.FormatUint(daaScoreRollback,10), "mSecond", strconv.Itoa(int(mtsRollback)))
         return
     } else if vspcListNext == nil {
         lenVspcListMaxAdj += 50
@@ -109,7 +113,7 @@ func scan() {
     // Extract and get the transaction list.
     daaScoreNextBatch := uint64(0)
     vspcRemoveIndex := 0
-    txDataList := []storage.DataTransactionType{}
+    txDataList := make([]storage.DataTransactionType, 0, 512)
     for i, vspc := range vspcListNext {
         if vspc.DaaScore <= vspcLast.DaaScore {
             continue
@@ -193,10 +197,10 @@ func scan() {
     }
     slog.Debug("operation.ExecuteBatch", "checkpoint", rollback.CheckpointAfter, "lenOperation/mSecond", strconv.Itoa(len(opDataList))+"/"+strconv.Itoa(int(mtsBatchExe)))
     eRuntime.synced = false
-    if daaScoreAvailable - vspcListNext[lenVspcNext-1].DaaScore > lenReorgDaaScoreMax {
-        rollback.StRowMapBefore = nil
-        rollback.IddKeyList = nil
-    }
+    //if daaScoreAvailable - vspcListNext[lenVspcNext-1].DaaScore > lenReorgDaaScoreMax {
+    //    rollback.StRowMapBefore = nil
+    //    rollback.IddKeyList = nil
+    //}
     if (lenVspcNext < 139) {
         eRuntime.synced = true
     }
@@ -222,40 +226,11 @@ func scan() {
     if lenRollback > 1 {
         eRuntime.rollbackList = eRuntime.rollbackList[lenRollback-1:]
     }
-    
-////////////////////////////
-fmt.Println("Execution Batch - ", "daaScore: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, "checkpoint: ", rollback.CheckpointBefore, rollback.CheckpointAfter, "stCommitment: ", rollback.StCommitmentBefore, rollback.StCommitmentAfter, "opScoreLast: ", rollback.OpScoreLast, "size: ", len(rollback.StRowMapBefore), len(rollback.IddKeyList))
-fmt.Println("")
-url := "https://api-24353568745345.kasplex.org/v1/krc20/op/"+strconv.FormatUint(rollback.OpScoreLast,10)
-fmt.Println("Checking: ", url)
-r, e := http.Get(url)
-if e == nil {
-    defer r.Body.Close()
-    if r.StatusCode == http.StatusOK {
-        rr, e := io.ReadAll(r.Body)
-        if e == nil {
-            rrs := string(rr)
-            if strings.Contains(rrs, rollback.CheckpointAfter) {
-                fmt.Println("#### CheckpointAfter Identical ####")
-            } else {
-                fmt.Println("%%%% CheckpointAfter Wrong %%%%")
-            }
-        } else {
-            fmt.Printf("io.ReadAll failed: ", e.Error())
-        }
-    } else {
-        fmt.Printf("http.Get failed: ", r.StatusCode)
-    }
-} else {
-    fmt.Printf("http.Get error: ", e.Error())
-}
-fmt.Println("")
-var input string
-fmt.Println("Press any Key to Continue ..")
-fmt.Scanln(&input)
-////////////////////////////
 
     // err = ProcessISD(0) ..
+    
+    // Fixed GC trigger.
+    runtime.GC()
     
     // Additional delay if state synced.
     mtsLoop := time.Now().UnixMilli() - mtss

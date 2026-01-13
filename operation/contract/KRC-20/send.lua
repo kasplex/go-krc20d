@@ -9,27 +9,30 @@ function init()
 	local sp = session.opParams
 	local tick = sp.tick
 	local opr = {
-		tick = "tick,r",
+		tick = "ticktxid,r",
 		to = "addr,r",
 		utxo = "ascii,r",
 		price = "amt,o",
 	}
 	if sp.ca~=nil then
 		tick = sp.ca
-		opr.tick = "txid,r"
 	end
 
-	local to = sp.from
-	local utxo = session.txInputs[session.op.index].prevTxId.."_"..sp.from
-	local price = "0"
+	local to = ""
+	local utxo = session.txInputs[tonumber(session.op.index)+1].prevTxId.."_"..sp.from
+	local price = ""
 	if #session.txOutputs>0 then
-		price = session.txOutputs[0].amount
+		price = session.txOutputs[1].amount
 	end
-	if #session.txOutputs>1 then
-		to = session.txOutputs[1].address
+	if #session.txOutputs>1 and session.op.index=="0" then
+		to = session.txOutputs[2].address
+	else
+		price = "0"
+		to = sp.from
 	end
 
 	return krc20.succ({
+		isRecycle = "1",
 		opParams = {
 			tick = tick,
 			to = to,
@@ -41,7 +44,7 @@ function init()
 			[krc20.keyToken(tick)] = "r",
 			[krc20.keyBalance(tick,sp.from)] = "w",
 			[krc20.keyBalance(tick,to)] = "w",
-			[krc20.keyMarket(tick,sp.from,session.txInputs[session.op.index].prevTxId)] = "w",
+			[krc20.keyMarket(tick,sp.from,session.txInputs[tonumber(session.op.index)+1].prevTxId)] = "w",
 		},
 	})
 
@@ -78,7 +81,7 @@ function run()
 
 	local keyTo = krc20.keyBalance(sp.tick, sp.to)
 	local stBlanceTo = state[keyTo]
-	if stBlanceTo==nil then
+	if stBlanceTo==nil or stBlanceTo.balance=="0" and stBlanceTo.locked=="0" then
 		stBlanceTo = {
 			address = sp.to,
 			tick = sp.tick,
@@ -93,10 +96,6 @@ function run()
 	stBlanceTo.balance = tostring(amt:add(mpz.new(stBlanceTo.balance,10)))
 	-- opmod todo fix ..
 	stMarket = {}
-
-	if stBlanceFrom.balance=="0" and stBlanceFrom.locked=="0" then
-		stBlanceFrom = {}
-	end
 
 	return krc20.succ({
 		opParams = {

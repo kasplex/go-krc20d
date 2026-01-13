@@ -108,4 +108,38 @@ func SaveIndexBatchRocks(tx *C.rocksdb_transaction_t, opDataList []DataOperation
     return keyList, nil
 }
 
+////////////////////////////////
+func GetOpListByOpRange(opRange string) ([]*DataIndexOperationType, error) {
+    keyOpScore := KeyPrefixIndexOpScore + "_" + fmt.Sprintf("%019s",opRange)
+    txIdList := make([]string, 0, 64)
+    keyList := make([]string, 0, 64)
+    err := seekCF(nil, cfIndex, []byte(keyOpScore+"_"), []byte(keyOpScore+"`"), 0, false, func(i int, key []byte, val []byte) (error) {
+        txId := string(val)
+        txIdList = append(txIdList, txId)
+        keyList = append(keyList, KeyPrefixIndexOpTxid+"_"+txId)
+        return nil
+    })
+    if err != nil {
+        return nil, err
+    }
+    opList := make([]*DataIndexOperationType, len(txIdList))
+    mutex := new(sync.RWMutex)
+    _, err = doGetBatchCF(nil, cfIndex, keyList, func(i int, val []byte) (error) {
+        data := DataIndexOperationType{}
+        err := json.Unmarshal(val, &data)
+        if err != nil {
+            return err
+        }
+        data.TxId = txIdList[i]
+        mutex.Lock()
+        opList[i] = &data
+        mutex.Unlock()
+        return nil
+    })
+    if err != nil {
+        return nil, err
+    }
+    return opList, nil
+}
+
 // ...

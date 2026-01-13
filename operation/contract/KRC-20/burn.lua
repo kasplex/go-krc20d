@@ -9,12 +9,11 @@ function init()
 	local sp = session.opParams
 	local tick = sp.tick
 	local opr = {
-		tick = "tick,r",
+		tick = "ticktxid,r",
 		amt = "amt,r",
 	}
 	if sp.ca~=nil then
 		tick = sp.ca
-		opr.tick = "txid,r"
 	end
 
 	return krc20.succ({
@@ -60,10 +59,6 @@ function run()
 	stToken.burned = tostring(amt:add(mpz.new(stToken.burned,10)))
 	stToken.opmod = session.op.score
 	stToken.mtsmod = session.block.timestamp
-
-	if stBlanceFrom.balance=="0" and stBlanceFrom.locked=="0" then
-		stBlanceFrom = {}
-	end
 
 	return krc20.succ({
 		opParams = {name=stToken.name},

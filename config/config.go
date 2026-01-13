@@ -36,17 +36,26 @@ type LyncsConfig struct {
     NumSlot int `json:"numSlot"`
     MaxInSlot int `json:"maxInSlot"`
 }
+type ApiConfig struct {
+    Host string `json:"host"`
+    Port int `json:"port"`
+    Timeout int `json:"timeout"`
+    ConnMax int `json:"connMax"`
+    PortSync int `json:"portSync"`
+    SyncMax int `json:"syncMax"`
+}
 type Config struct {
     Startup StartupConfig `json:"startup"`
     Cassandra CassaConfig `json:"cassandra"`
     Rocksdb RocksConfig `json:"rocksdb"`
     Lyncs LyncsConfig `json:"lyncs"`
+    Api ApiConfig `json:"api"`
     Debug int `json:"debug"`
     Testnet bool `json:"testnet"`
 }
 
 ////////////////////////////////
-const Version = "3.01.251212"
+const Version = "3.01.251231"
 
 ////////////////////////////////
 func Load(cfg *Config) {

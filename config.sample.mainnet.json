@@ -20,6 +20,14 @@
         "numSlot": 8,
         "maxInSlot": 128
     },
+    "api": {
+        "host": "0.0.0.0",
+        "port": 8005,
+        "timeout": 5,
+        "connMax": 100,
+        "portSync": 0,
+        "syncMax": 8
+    },
     "testnet": false,
     "debug": 2
 }

@@ -15,6 +15,7 @@ import (
     "path/filepath"
     "kasplex-executor/config"
     "kasplex-executor/storage"
+    "kasplex-executor/api"
     "kasplex-executor/explorer"
 )
 
@@ -80,7 +81,8 @@ func main() {
     // Init storage driver.
     storage.Init(cfg.Cassandra, cfg.Rocksdb)
     
-    // api server ...
+    // Init api server
+    api.Init(c, cfg.Api, cfg.Testnet, cfg.Debug)
     
     // Init explorer if api server up.
     if (!down) {
@@ -95,6 +97,7 @@ func main() {
     
     // Waiting
     wg.Wait()
+    api.Shutdown()
     storage.Destroy()
     slog.Info("main exited.")
 }

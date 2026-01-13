@@ -179,6 +179,19 @@ func GetRuntimeCassa(key string) (string, string, string, error) {
 }
 
 ////////////////////////////////
+// Get the node sync state.
+func GetRuntimeNodeSynced() (bool, error) {
+    synced, _, _, err := GetRuntimeCassa("ST_SYNCED")
+    if err != nil {
+        return false, err
+    }
+    if synced == "1" {
+        return true, nil
+    }
+    return false, nil
+}
+
+////////////////////////////////
 // Get the last updated virtual chain block state.
 func GetRuntimeChainBlockLast() (string, uint64, uint64, error) {
     hash, blueScore, daaScore, err := GetRuntimeCassa("H_CBLOCK_LAST")

@@ -7,7 +7,9 @@ function init()
 	end
 
 	local sp = session.opParams
-
+	if sp.to=="" then
+		return krc20.fail("address invalid")
+	end
 	if sp.mod~="add" or sp.mod~="remove" then
 		return krc20.fail("mode invalid")
 	end

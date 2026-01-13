@@ -7,15 +7,18 @@ function init()
 	end
 
 	local sp = session.opParams
+	if sp.to=="" then
+		return krc20.fail("address invalid")
+	end
+
 	local tick = sp.tick
 	local opr = {
-		tick = "tick,r",
+		tick = "ticktxid,r",
 		amt = "amt,r",
 		to = "addr,o",
 	}
 	if sp.ca~=nil then
 		tick = sp.ca
-		opr.tick = "txid,r"
 	end
 
 	return krc20.succ({
@@ -78,10 +81,6 @@ function run()
 	local amtTo = mpz.new(stBlanceTo.balance, 10)
 	stBlanceTo.balance = tostring(amtTo:add(amt))
 	stBlanceTo.opmod = session.op.score
-
-	if stBlanceFrom.balance=="0" and stBlanceFrom.locked=="0" then
-		stBlanceFrom = {}
-	end
 
 	return krc20.succ({
 		opParams = {name=stToken.name},

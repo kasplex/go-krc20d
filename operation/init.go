@@ -125,7 +125,8 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
         return rollback, nil, 0, nil
     }
 
-fmt.Println("mts = ", time.Now().UnixMilli())
+mts0 := time.Now().UnixMilli()
+fmt.Println("mts = ", mts0)
     
     callRunList := make([]lyncs.DataCallFuncType, 0, lenOp*12/10)
     for i := range opDataList {
@@ -135,10 +136,13 @@ fmt.Println("mts = ", time.Now().UnixMilli())
                 Tx: opDataList[i].Tx,
                 TxInputs: opDataList[i].TxInputs,
                 TxOutputs: opDataList[i].TxOutputs,
-                Op: opDataList[i].Op,
                 OpParams: opDataList[i].OpScript[j],
             }
-            session.Op["index"] = strconv.Itoa(j)
+            session.Op = make(map[string]string, len(opDataList[i].Op)+1)
+            for k := range opDataList[i].Op {
+                session.Op[k] = opDataList[i].Op[k]
+            }
+            session.Op["index"] = strconv.Itoa(opDataList[i].OpIndex[j])
             callRunList = append(callRunList, lyncs.DataCallFuncType{
                 Name: opDataList[i].OpScript[j]["p"] + "_" + opDataList[i].OpScript[j]["op"],
                 Fn: "run",
@@ -154,7 +158,8 @@ fmt.Println("mts = ", time.Now().UnixMilli())
     stRowAfterMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
     mutex := &sync.RWMutex{}
 
-fmt.Println("mts = ", time.Now().UnixMilli())
+mts1 := time.Now().UnixMilli()
+fmt.Println("mts = ", mts1)
     
     lyncs.CallFuncParallel(callRunList, stateMap, nil, nil,
         func(c *lyncs.DataCallFuncType, i int, r *lyncs.DataResultType, err error) (*lyncs.DataResultType) {
@@ -183,34 +188,47 @@ fmt.Println("error: ", err.Error())
             }
             index, _ := strconv.Atoi(c.Session.Op["index"])
             mutex.Lock()
-            stLineBeforeMap[c.Session.Op["score"]] = map[int][]string{
-                index: stLineBefore,
+            if stLineBeforeMap[c.Session.Op["score"]] == nil {
+                stLineBeforeMap[c.Session.Op["score"]] = make(map[int][]string, 1)
             }
-            stLineAfterMap[c.Session.Op["score"]] = map[int][]string{
-                index: stLineAfter,
+            stLineBeforeMap[c.Session.Op["score"]][index] = stLineBefore
+            if stLineAfterMap[c.Session.Op["score"]] == nil {
+                stLineAfterMap[c.Session.Op["score"]] = make(map[int][]string, 1)
             }
-            stRowBeforeMap[c.Session.Op["score"]] = map[int][]*storage.DataKvRowType{
-                index: stRowBefore,
+            stLineAfterMap[c.Session.Op["score"]][index] = stLineAfter
+            if stRowBeforeMap[c.Session.Op["score"]] == nil {
+                stRowBeforeMap[c.Session.Op["score"]] = make(map[int][]*storage.DataKvRowType, 1)
             }
-            stRowAfterMap[c.Session.Op["score"]] = map[int][]*storage.DataKvRowType{
-                index: stRowAfter,
+            stRowBeforeMap[c.Session.Op["score"]][index] = stRowBefore
+            if stRowAfterMap[c.Session.Op["score"]] == nil {
+                stRowAfterMap[c.Session.Op["score"]] = make(map[int][]*storage.DataKvRowType, 1)
             }
-            resultMap[c.Session.Op["score"]] = map[int]*lyncs.DataResultType{
-                index: r,
+            stRowAfterMap[c.Session.Op["score"]][index] = stRowAfter
+            if resultMap[c.Session.Op["score"]] == nil {
+                resultMap[c.Session.Op["score"]] = make(map[int]*lyncs.DataResultType, 1)
             }
+            resultMap[c.Session.Op["score"]][index] = r
             mutex.Unlock()
             return r
         },
     )
 
-fmt.Println("mts = ", time.Now().UnixMilli())
+mts2 := time.Now().UnixMilli()
+fmt.Println("mts = ", mts2)
+fmt.Println("Lyncs TPS: ", (len(callRunList)*1000)/int(mts2-mts1+1))
     
     misc.GoBatch(len(opDataList), func(i int, iBatch int) (error) {
         opData := &opDataList[i]
         iScriptAccept := -1
         opError := ""
         for iScript := range opData.OpScript{
-            result := resultMap[opData.Op["score"]][iScript]
+            result := resultMap[opData.Op["score"]][opData.OpIndex[iScript]]
+            
+if result == nil {
+    fmt.Println("opData/iScript/resultMap: ", opData, iScript, resultMap[opData.Op["score"]])
+}
+//fmt.Println("result: ", result)
+            
             if result.Op["accept"] == "1" && iScriptAccept < 0 {
                 iScriptAccept = iScript
             }
@@ -314,7 +332,9 @@ fmt.Println("stateMap["+k+"]: ", v)
     rollback.CheckpointAfter = checkpointLast
     rollback.StCommitmentAfter = stCommitmentLast
 
-fmt.Println("mts = ", time.Now().UnixMilli())
+mts4 := time.Now().UnixMilli()
+fmt.Println("mts = ", mts4)
+fmt.Println("ExecuteBatch TPS: ", (len(callRunList)*1000)/int(mts4-mts0+1))
         
 /*for k,v := range stateMap {
 fmt.Println("stateMap["+k+"]: ", v)
@@ -335,6 +355,7 @@ func countStLine(stMapBefore map[string]string, stMapAfter map[string]string) (*
     TickAffcMap := make(map[string]int, 2)
     balanceBig := new(big.Int)
     lockedBig := new(big.Int)
+    stBalance := make([]string, 0, 8)
     for k, v := range stMapAfter {
         line := strings.Split(k, "_")
         if line[0] == storage.KeyPrefixStateBalance {
@@ -342,9 +363,21 @@ func countStLine(stMapBefore map[string]string, stMapAfter map[string]string) (*
             nilAfter := false
             if stMapBefore[k] == "" {
                 nilBefore = true
+            } else {
+                stBalance = stBalance[:0]
+                stBalance = strings.Split(stMapBefore[k], ",")
+                if stBalance[1] == "0" && stBalance[2] == "0" {
+                    nilBefore = true
+                }
             }
             if v == "" {
                 nilAfter = true
+            } else {
+                stBalance = stBalance[:0]
+                stBalance = strings.Split(v, ",")
+                if stBalance[1] == "0" && stBalance[2] == "0" {
+                    nilAfter = true
+                }
             }
             if nilBefore && !nilAfter {
                 TickAffcMap[line[2]] = TickAffcMap[line[2]] + 1
@@ -355,7 +388,6 @@ func countStLine(stMapBefore map[string]string, stMapAfter map[string]string) (*
             }
             total := "0"
             if !nilAfter {
-                stBalance := strings.Split(v, ",")
                 balanceBig.SetString(stBalance[1], 10)
                 lockedBig.SetString(stBalance[2], 10)
                 balanceBig = balanceBig.Add(balanceBig, lockedBig)
@@ -612,16 +644,19 @@ func calculateStStats(opData *storage.DataOperationType, stateMap storage.DataSt
     for _, k := range keys {
         if stStatsMap[k] == nil {
             stStatsMap[k] = &storage.StateStatsType{}
+            stStatsMap[k].OpTotalMap = make(map[string]uint64, 16)
             if stateMap[k] != nil && stateMap[k]["data"] != "" {
                 dataByte := []byte(stateMap[k]["data"])
                 json.Unmarshal(dataByte, stStatsMap[k])
                 stRowMapBefore[k] = storage.BuildDataKvRow([]byte(k), dataByte)
+                for i := range stStatsMap[k].OpTotal {
+                    stStatsMap[k].OpTotalMap[stStatsMap[k].OpTotal[i].Op] = stStatsMap[k].OpTotal[i].Count
+                }
             } else {
-                stStatsMap[k].OpTotal = make([]storage.StateStatsOpCountType, 0, 16)
                 stStatsMap[k].HolderTop = make([][2]string, 0, lenHolderTopMax+1)
                 stRowMapBefore[k] = storage.BuildDataKvRow([]byte(k), nil)
             }
-            stStatsMap[k].OpTotalMap = make(map[string]uint64, 16)
+            stStatsMap[k].OpTotal = make([]storage.StateStatsOpCountType, 0, 16)
         }
     }
     fee, _ := strconv.ParseUint(opData.Tx["fee"], 10, 64)

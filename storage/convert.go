@@ -96,6 +96,9 @@ func ConvStateToKvRow(key string, data map[string]string) (*DataKvRowType) {
             MtsMod: MtsMod,
         })
     } else if prefix == KeyPrefixStateBalance {
+        if data["balance"] == "0" && data["locked"] == "0" {
+            return BuildDataKvRow(unsafe.Slice(unsafe.StringData(key),lenKey), nil)
+        }
         dec, _ := strconv.Atoi(data["dec"])
         opMod, _ := strconv.ParseUint(data["opmod"], 10, 64)
         val, _ = json.Marshal(&StateBalanceType{

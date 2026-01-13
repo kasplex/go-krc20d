@@ -78,7 +78,7 @@ function run()
 			opmod = "0",
 		}
 	end
-	lim:add(left:set(stBalanceTo.balance))
+	lim:add(mpz.new(stBalanceTo.balance,10))
 
 	stBalanceTo.balance = tostring(lim)
 	stBalanceTo.opmod = session.op.score

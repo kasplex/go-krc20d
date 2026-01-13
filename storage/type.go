@@ -54,6 +54,7 @@ type DataOpStateType struct {
 
 ////////////////////////////////
 type DataIndexOperationType struct {
+    TxId string
     State *DataOpStateType `json:"state,omitempty"`
     Script map[string]string `json:"script,omitempty"`
     ScriptEx []map[string]string `json:"Scriptex,omitempty"`
@@ -88,6 +89,7 @@ type DataOperationType struct {
     TxOutputs []map[string]string
     Op map[string]string
     OpScript []map[string]string
+    OpIndex []int
     OpKeyRules []map[string]string
     StBefore []string
     StAfter []string
