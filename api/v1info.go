@@ -6,13 +6,13 @@ import (
     "strconv"
     "github.com/gofiber/fiber/v2"
     "kasplex-executor/config"
-	"kasplex-executor/storage"
+    "kasplex-executor/storage"
 )
 
 ////////////////////////////////
 type v1resultInfo struct {
-	available bool
-	synced bool
+    available bool
+    synced bool
     Version string `json:"version"`
     VersionApi string `json:"versionApi"`
     DaaScore string `json:"daaScore"`
@@ -38,7 +38,7 @@ var cacheStateInfo cacheStateType
 ////////////////////////////////
 func v1routeInfo(c *fiber.Ctx) (error) {
     r := &v1responseInfo{}
-    _, info, err := getInfoERC20()
+    _, _, info, err := getInfoKRC20()
     if err != nil {
         r.Message = v1msgInternalError
         return c.Status(403).JSON(r)
@@ -53,7 +53,7 @@ func v1routeInfo(c *fiber.Ctx) (error) {
 }
 
 ////////////////////////////////
-func getInfoERC20() (bool, *v1resultInfo, error) {
+func getInfoKRC20() (bool, bool, *v1resultInfo, error) {
     info := &v1resultInfo{}
     mtsNow := time.Now().UnixMilli()
     cacheAvailable := true
@@ -63,32 +63,41 @@ func getInfoERC20() (bool, *v1resultInfo, error) {
     } else {
         *info = dataInfo
     }
-	cacheStateInfo.RUnlock()
+    cacheStateInfo.RUnlock()
+    var synced bool
     if cacheAvailable {
-        return info.available, info, nil
+        if aRuntime.cfg.AllowUnsync {
+            synced = true
+        } else {
+            synced = info.synced
+        }
+        return info.available, synced, info, nil
     }
     var err error
     var daaScore uint64
     var dataSynced *storage.DataSyncedType
     daaScoreGap := uint64(999)
     stKeyStatsKRC20 := storage.KeyPrefixStateStats + "_#KRC-20"
-    stateMap := storage.DataStateMapType{stKeyStatsKRC20:nil}
-    stStatsMap := &storage.StateStatsType{}
+    stStatsMap := storage.DataStateMapType{stKeyStatsKRC20:nil}
+    statsData := &storage.StateStatsType{}
     opTotal := uint64(0)
     cacheStateInfo.Lock()
     defer cacheStateInfo.Unlock()
     info.available, err = storage.GetRuntimeNodeSynced()
     if err != nil {
-        return false, nil, err
+        return false, false, nil, err
+    }
+    if aRuntime.cfg.AllowUnsync {
+        info.available = true
     }
     _, _, daaScore, err = storage.GetRuntimeChainBlockLast()
     if err != nil {
-        return false, nil, err
+        return false, false, nil, err
     }
     info.DaaScore = strconv.FormatUint(daaScore, 10)
     dataSynced, err = storage.GetRuntimeSynced()
     if err != nil {
-        return false, nil, err
+        return false, false, nil, err
     }
     info.synced = dataSynced.Synced
     info.VersionApi = config.Version
@@ -101,29 +110,34 @@ func getInfoERC20() (bool, *v1resultInfo, error) {
     if daaScoreGap > 99 {
         info.synced = false
     }
-    _, err = storage.GetStateBatch(stateMap)
+    _, err = storage.GetStateBatch(stStatsMap)
     if err != nil {
-        return false, nil, err
+        return false, false, nil, err
     }
-    if stateMap[stKeyStatsKRC20] == nil || stateMap[stKeyStatsKRC20]["data"] == "" {
+    if stStatsMap[stKeyStatsKRC20] == nil || stStatsMap[stKeyStatsKRC20]["data"] == "" {
         info.OpTotal = "0"
         info.TokenTotal = "0"
         info.FeeTotal = "0"
     } else {
-        err = json.Unmarshal([]byte(stateMap[stKeyStatsKRC20]["data"]), stStatsMap)
+        err = json.Unmarshal([]byte(stStatsMap[stKeyStatsKRC20]["data"]), statsData)
         if err != nil {
-            return false, nil, err
+            return false, false, nil, err
         }
-        for i := range stStatsMap.OpTotal {
-            if stStatsMap.OpTotal[i].Op != "all" {
+        for i := range statsData.OpTotal {
+            if statsData.OpTotal[i].Op != "all" {
                 continue
             }
-            opTotal = stStatsMap.OpTotal[i].Count
+            opTotal = statsData.OpTotal[i].Count
             break
         }
         info.OpTotal = strconv.FormatUint(opTotal, 10)
-        info.TokenTotal = strconv.FormatUint(stStatsMap.TokenTotal, 10)
-        info.FeeTotal = strconv.FormatUint(stStatsMap.FeeTotal, 10)
+        info.TokenTotal = strconv.FormatUint(statsData.TokenTotal, 10)
+        info.FeeTotal = strconv.FormatUint(statsData.FeeTotal, 10)
     }
-    return info.available, info, nil
+    if aRuntime.cfg.AllowUnsync {
+        synced = true
+    } else {
+        synced = info.synced
+    }
+    return info.available, synced, info, nil
 }

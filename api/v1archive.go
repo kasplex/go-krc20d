@@ -3,8 +3,9 @@ package api
 
 import (
     "strings"
+    "strconv"
     "github.com/gofiber/fiber/v2"
-	"kasplex-executor/storage"
+    "kasplex-executor/storage"
 )
 
 ////////////////////////////////
@@ -23,17 +24,37 @@ type v1responseArchiveOpList struct {
 }
 
 ////////////////////////////////
+const daaScoreHysteresis = uint64(170)
+
+////////////////////////////////
 func v1ArchiveOpList(c *fiber.Ctx) (error) {
     r := &v1responseArchiveOpList{}
+    _, synced, info, err := getInfoKRC20()
+    if err != nil || !synced {
+        r.Message = v1msgUnsynced
+        return c.Status(403).JSON(r)
+    }
     opRange := c.Params("oprange")
-	opRange, _ = filterUintString(opRange)
-	if opRange == "" {
+    opRange, _ = filterUintString(opRange)
+    if opRange == "" {
         r.Message = "opRange invalid"
-		return c.Status(403).JSON(r)
-	}
+        return c.Status(403).JSON(r)
+    }
+    daaScoreLast, _ := strconv.ParseUint(info.DaaScore, 10, 64)
+    daaScoreGap, _ := strconv.ParseUint(info.DaaScoreGap, 10, 64)
+    daaScoreLast = daaScoreLast - daaScoreGap - daaScoreHysteresis
+    intOpRange, _ := strconv.ParseUint(opRange, 10, 64)
+    if intOpRange > daaScoreLast/10 {
+        r.Message = "opRange " + v1msgNotReached
+        return c.Status(403).JSON(r)
+    }
     opList, err := storage.GetOpListByOpRange(opRange)
     if err != nil {
-        r.Message = v1msgInternalError
+        if err.Error() == v1msgDataExpired {
+            r.Message = v1msgDataExpired
+        } else {
+            r.Message = v1msgInternalError
+        }
         return c.Status(403).JSON(r)
     }
     r.Result = make([]v1resultArchiveOpList, 0, len(opList))

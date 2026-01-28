@@ -12,6 +12,7 @@ import (
     "log"
     "sync"
     "time"
+    "bytes"
     "unsafe"
     "runtime"
     "sync/atomic"
@@ -42,6 +43,11 @@ var rOptPool sync.Pool
 ////////////////////////////////
 func SetDaaScoreLastRocks(daaScore uint64) {
     atomic.StoreUint64((*uint64)(unsafe.Pointer(&C.rocks_daaScoreLatest)), daaScore)
+}
+
+////////////////////////////////
+func GetDaaScoreLastRocks() uint64 {
+    return atomic.LoadUint64((*uint64)(unsafe.Pointer(&C.rocks_daaScoreLatest)))
 }
 
 ////////////////////////////////
@@ -249,9 +255,10 @@ func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte,
     defer rOptPool.Put(rOptSeek)
     C.rocksdb_readoptions_set_iterate_lower_bound(rOptSeek, nil, 0)
     C.rocksdb_readoptions_set_iterate_upper_bound(rOptSeek, nil, 0)
-    if dsc && lenKeyStart > 0 {
+    if lenKeyStart > 0 {
         C.rocksdb_readoptions_set_iterate_lower_bound(rOptSeek, keyStartC, C.size_t(lenKeyStart))
-    } else if lenKeyEnd > 0 {
+    }
+    if lenKeyEnd > 0 {
         C.rocksdb_readoptions_set_iterate_upper_bound(rOptSeek, keyEndC, C.size_t(lenKeyEnd))
     }
     var iter *C.rocksdb_iterator_t
@@ -284,6 +291,10 @@ func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte,
             return fmt.Errorf("nil key")
         }
         key = unsafe.Slice((*byte)(unsafe.Pointer(keyC)), lenKey)
+        if i == 0 && dsc && bytes.Compare(key,keyEnd) >= 0 {
+            C.rocksdb_iter_prev(iter)
+            continue
+        }
         var val []byte
         var lenValC C.size_t
         valC := C.rocksdb_iter_value(iter, &lenValC)
@@ -421,6 +432,11 @@ func txRollback(tx *C.rocksdb_transaction_t) (error) {
     err := errRocks(errC)
     txDestroy(tx)
     return err
+}
+
+////////////////////////////////
+func CompactCF(cf int) {
+    C.rocksdb_compact_range_cf(C.rocksdb_transactiondb_get_base_db(sRuntime.rocks), sRuntime.cfHandleList[cf], nil, 0, nil, 0)
 }
 
 ////////////////////////////////

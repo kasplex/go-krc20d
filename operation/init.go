@@ -578,7 +578,6 @@ func makeStLineContract(key string, stContract map[string]string) (string) {
     return strings.Join(list, ",")
 }
 
-
 ////////////////////////////////
 func updateStatsHolderTop(holderTop [][2]string, addrAmtMap map[string]string) ([][2]string) {
     amtBig := new(big.Int)

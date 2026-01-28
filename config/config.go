@@ -16,6 +16,7 @@ type StartupConfig struct {
     Hysteresis int `json:"hysteresis"`
     DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
     TickReserved []string `json:"tickReserved"`
+    CompactOnInit bool `json:"compactOnInit"`
     Lyncs LyncsConfig `json:"lyncs"`
 }
 type CassaConfig struct {
@@ -31,6 +32,7 @@ type RocksConfig struct {
     DtlIndex uint64 `json:"dtlIndex"`
     DtlFailed uint64 `json:"dtlFailed"`
     IndexDisabled bool `json:"indexDisabled"`
+    CompactOnInit bool `json:"compactOnInit"`
 }
 type LyncsConfig struct {
     NumSlot int `json:"numSlot"`
@@ -43,6 +45,8 @@ type ApiConfig struct {
     ConnMax int `json:"connMax"`
     PortSync int `json:"portSync"`
     SyncMax int `json:"syncMax"`
+    AllowUnsync bool `json:"allowUnsync"`
+    AllowDebug bool `json:"allowDebug"`
 }
 type Config struct {
     Startup StartupConfig `json:"startup"`
@@ -74,4 +78,5 @@ func Load(cfg *Config) {
         log.Fatalln("config.Load fatal:", err.Error())
     }
     cfg.Startup.Lyncs = cfg.Lyncs
+    cfg.Startup.CompactOnInit = cfg.Rocksdb.CompactOnInit
 }

@@ -38,6 +38,14 @@ func initCassa() {
             EnableHostVerification: false,
         }
     }
+    sRuntime.cassa.Timeout = 7 * time.Second
+    sRuntime.cassa.ConnectTimeout = 13 * time.Second
+    sRuntime.cassa.SocketKeepalive = 31 * time.Second
+    sRuntime.cassa.RetryPolicy = &gocql.ExponentialBackoffRetryPolicy{
+        NumRetries: 3,
+        Min: 300 * time.Millisecond,
+        Max: 3 * time.Second,
+    }
     sRuntime.cassa.Consistency = gocql.LocalQuorum
     sRuntime.cassa.DisableInitialHostLookup = false
     sRuntime.cassa.NumConns = numConns

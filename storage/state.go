@@ -7,8 +7,12 @@ import "C"
 import (
     "sync"
     "time"
+    "slices"
     "kasplex-executor/config"
 )
+
+////////////////////////////////
+const pageSizeState = 50
 
 ////////////////////////////////
 const KeyPrefixStateToken = "sttoken"
@@ -192,4 +196,179 @@ func RollbackExecutionBatch(daaScore uint64) (int64, error) {
     }
     SetDaaScoreLastRocks(daaScoreStart)
     return time.Now().UnixMilli() - mtss, nil
+}
+
+////////////////////////////////
+func GetStateTokenMap(tickList []string) (DataStateMapType, error) {
+    lenTick := len(tickList)
+    stTokenMap := make(DataStateMapType, lenTick)
+    if lenTick == 0 {
+        return stTokenMap, nil
+    }
+    for i := range tickList {
+        stTokenMap[KeyPrefixStateToken+"_"+tickList[i]] = nil
+    }
+    _, err := GetStateBatch(stTokenMap)
+    if err != nil {
+        return nil, err
+    }
+    return stTokenMap, nil
+}
+
+////////////////////////////////
+func GetStateStatsData(tick string) (*StateStatsType, error) {
+    keyStats := KeyPrefixStateStats + "_" + tick
+    stStatsMap := DataStateMapType{keyStats:nil}
+    _, err := GetStateBatch(stStatsMap)
+    if err != nil {
+        return nil, err
+    }
+    if stStatsMap[keyStats] == nil || stStatsMap[keyStats]["data"] == "" {
+        return nil, nil
+    }
+    statsData := &StateStatsType{}
+    err = json.Unmarshal([]byte(stStatsMap[keyStats]["data"]), statsData)
+    if err != nil {
+        return nil, err
+    }
+    return statsData, nil
+}
+
+////////////////////////////////
+func getStateToStringMap(key string) (map[string]string, error) {
+    var stData map[string]string
+    _, err := getCF(nil, cfState, []byte(key), func(val []byte) (error) {
+        if val == nil {
+            return nil
+        }
+        decoded, err := ConvStateToStringMap(key, val)
+        if err != nil {
+            return err
+        }
+        stData = decoded
+        return nil
+    })
+    if err != nil {
+        return nil, err
+    }
+    return stData, nil
+}
+
+////////////////////////////////
+func seekStateToStringMapList(keyStart []byte, keyEnd []byte, dsc bool, reverse bool) ([]map[string]string, error) {
+    stDataList := make([]map[string]string, 0, pageSizeState)
+    err := seekCF(nil, cfState, keyStart, keyEnd, pageSizeState, dsc, func(i int, key []byte, val []byte) (error) {
+        if val == nil {
+            return nil
+        }
+        decoded, err := ConvStateToStringMap(string(key), val)
+        if err != nil {
+            return err
+        }
+        stDataList = append(stDataList, decoded)
+        return nil
+    })
+    if err != nil {
+        return nil, err
+    }
+    if reverse {
+        slices.Reverse(stDataList)
+    }
+    return stDataList, nil
+}
+
+////////////////////////////////
+func GetStateAddressBalanceList(address string, tickNext string, goPrev bool) ([]map[string]string, error) {
+    key := KeyPrefixStateBalance + "_" + address
+    var keyStart []byte
+    var keyEnd []byte
+    if goPrev {
+        keyStart = []byte(key + "_" + tickNext + " ")
+        keyEnd = []byte(key + "`")
+    } else {
+        keyStart = []byte(key + "_")
+        keyEnd = []byte(key + "_" + tickNext)
+    }
+    return seekStateToStringMapList(keyStart, keyEnd, !goPrev, goPrev)
+}
+
+////////////////////////////////
+func GetStateAddressBalanceData(address string, tick string) (map[string]string, error) {
+    return getStateToStringMap(KeyPrefixStateBalance + "_" + address + "_" + tick)
+}
+
+////////////////////////////////
+func GetStateBlacklistList(tick string, addressNext string, goPrev bool) ([]map[string]string, error) {
+    key := KeyPrefixStateBlacklist + "_" + tick
+    var keyStart []byte
+    var keyEnd []byte
+    if goPrev {
+        keyStart = []byte(key + "_" + addressNext + " ")
+        keyEnd = []byte(key + "`")
+    } else {
+        keyStart = []byte(key + "_")
+        keyEnd = []byte(key + "_" + addressNext)
+    }
+    return seekStateToStringMapList(keyStart, keyEnd, !goPrev, goPrev)
+}
+
+////////////////////////////////
+func GetStateBlacklistData(tick string, address string) (map[string]string, error) {
+    return getStateToStringMap(KeyPrefixStateBlacklist + "_" + tick + "_" + address)
+}
+
+////////////////////////////////
+func GetStateMarketList(tick string, address string, addressTxIdNext string, goPrev bool) ([]map[string]string, error) {
+    key := KeyPrefixStateMarket + "_" + tick
+    var keyStart []byte
+    var keyEnd []byte
+    if goPrev {
+        if address == "" {
+            keyStart = []byte(key + "_")
+        } else {
+            keyStart = []byte(key + "_" + address + "_")
+        }
+        keyEnd = []byte(key + "_" + addressTxIdNext)
+    } else {
+        if addressTxIdNext == "" && address != "" {
+            addressTxIdNext = address + "_"
+        }
+        keyStart = []byte(key + "_" + addressTxIdNext + " ")
+        if address == "" {
+            keyEnd = []byte(key + "`")
+        } else {
+            keyEnd = []byte(key + "_" + address + "`")
+        }
+    }
+    return seekStateToStringMapList(keyStart, keyEnd, goPrev, goPrev)
+}
+
+////////////////////////////////
+func GetStateMarketData(tick string, address string, txId string) (map[string]string, error) {
+    return getStateToStringMap(KeyPrefixStateMarket + "_" + tick + "_" + address + "_" + txId)
+}
+
+////////////////////////////////
+func SeekStateRaw(key string, maxCount int, dsc bool) ([]string, []string, error) {
+    if maxCount <= 0 || maxCount > pageSizeState {
+        maxCount = pageSizeState
+    }
+    var keyStart []byte
+    var keyEnd []byte
+    if dsc {
+        keyEnd = []byte(key + " ")
+    } else {
+        keyStart = []byte(key)
+    }
+    stKeyList := make([]string, 0, maxCount)
+    stValList := make([]string, 0, maxCount)
+    err := seekCF(nil, cfState, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (error) {
+        stKeyList = append(stKeyList, string(key))
+        stValList = append(stValList, string(val))
+        return nil
+    })
+    if err != nil {
+        return nil, nil, err
+    }
+    return stKeyList, stValList, nil
 }

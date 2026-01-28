@@ -12,9 +12,10 @@
     },
     "rocksdb": {
         "path": "./data",
-        "dtlIndex": 25920000,
-        "dtlFailed": 288000,
-		"indexDisabled": false
+        "dtlIndex": 86400000,
+        "dtlFailed": 8640000,
+        "indexDisabled": false,
+        "compactOnInit": false
     },
     "lyncs": {
         "numSlot": 8,
@@ -25,8 +26,10 @@
         "port": 8005,
         "timeout": 5,
         "connMax": 100,
+        "allowUnsync": false,
+        "allowDebug": false,
         "portSync": 0,
-        "syncMax": 8
+        "syncMax": 4
     },
     "testnet": false,
     "debug": 2

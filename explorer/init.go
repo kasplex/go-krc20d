@@ -63,6 +63,11 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
     lenVspc := len(eRuntime.vspcList)
     if lenVspc > 0 {
         vspcLast := eRuntime.vspcList[lenVspc-1]
+        if eRuntime.cfg.CompactOnInit {
+            slog.Info("storage.CompactCF", "daaScoreLast", vspcLast.DaaScore)
+            storage.SetDaaScoreLastRocks(vspcLast.DaaScore)
+            storage.CompactIndex()
+        }
         slog.Info("explorer.Init", "lastVspcDaaScore", vspcLast.DaaScore, "lastVspcBlockHash", vspcLast.Hash)
     } else {
         slog.Info("explorer.Init", "lastVspcDaaScore", eRuntime.cfg.DaaScoreRange[0][0], "lastVspcBlockHash", "")
