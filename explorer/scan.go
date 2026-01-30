@@ -79,6 +79,7 @@ func scan() {
     // Check vspc list if need rollback.
     daaScoreRollback, vspcListNext := checkRollback(eRuntime.vspcList, vspcListNext, daaScoreStart)
     if daaScoreRollback > 0 {
+        storage.ProcessISD(daaScoreRollback)
         mtsRollback := int64(0)
         mtsRollback, err = storage.RollbackExecutionBatch(daaScoreRollback)
         if err != nil {
@@ -91,9 +92,6 @@ func scan() {
             log.Fatalln("explorer.initRuntime fatal: ", err)
             return
         }
-        
-        // err = ProcessISD(??) ..
-        
         slog.Info("storage.RollbackExecutionBatch", "start/rollback", strconv.FormatUint(daaScoreStart,10)+"/"+strconv.FormatUint(daaScoreRollback,10), "mSecond", strconv.Itoa(int(mtsRollback)))
         return
     } else if vspcListNext == nil {
@@ -356,8 +354,9 @@ if wrong {
     if lenRollback > 1 {
         eRuntime.rollbackList = eRuntime.rollbackList[lenRollback-1:]
     }
-
-    // err = ProcessISD(0) ..
+    
+    // Update the ISD status.
+    storage.ProcessISD(0)
     
     // Additional delay if state synced.
     mtsLoop := time.Now().UnixMilli() - mtss

@@ -11,11 +11,15 @@ krc20 = {
 		t.feeLeast = nil
 		t.isRecycle = nil
 		local st = {}
+		local k = ""
 		for i,v in ipairs(t.state or {}) do
-			v[2]["_key"] = v[1]
-			st[#st+1] = v[2]
+			--v[2]["_key"] = v[1]
+			--st[#st+1] = v[2]
+			st[v[1]] = v[2]
+			k = k..v[1]..","
 		end
 		t.state = st
+		t.exData = {keyList=k}
 		return t
 	end,
 

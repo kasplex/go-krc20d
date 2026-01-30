@@ -66,7 +66,7 @@ func ConvIndexOpDataToKvRow(key string, opData *DataOperationType) (*DataKvRowTy
 ////////////////////////////////
 func ConvStateToKvRow(key string, data map[string]string) (*DataKvRowType) {
     lenKey := len(key)
-    if data == nil || data["_key"] != "" && len(data) == 1 {
+    if data == nil /*|| data["_key"] != "" && len(data) == 1 */{
         return BuildDataKvRow(unsafe.Slice(unsafe.StringData(key),lenKey), nil)
     }
     var val []byte

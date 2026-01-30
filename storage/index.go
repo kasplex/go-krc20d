@@ -185,9 +185,9 @@ func GetOpListByOpRange(opRange string) ([]*DataIndexOperationType, error) {
     }
     keyOpScore := KeyPrefixIndexOpScore + "_" + fmt.Sprintf("%015s",opRange)
     txIdList := make([]string, 0, 64)
-    err = seekCF(nil, cfIndex, []byte(keyOpScore+"_"), []byte(keyOpScore+"`"), 0, false, func(i int, key []byte, val []byte) (error) {
+    err = seekCF(nil, cfIndex, []byte(keyOpScore+"_"), []byte(keyOpScore+"`"), 0, false, func(i int, key []byte, val []byte) (bool, error) {
         txIdList = append(txIdList, string(val))
-        return nil
+        return true, nil
     })
     if err != nil {
         return nil, err
@@ -248,9 +248,9 @@ func GetOpTxIdListByOpIndex(address string, tick string, opScoreNext uint64, goP
         keyStart = []byte(key + "_" + fmt.Sprintf("%020d", opScoreNext))
         keyEnd = []byte(key + "`")
     }
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, func(i int, key []byte, val []byte) (error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, func(i int, key []byte, val []byte) (bool, error) {
         txIdList = append(txIdList, string(val))
-        return nil
+        return true, nil
     })
     if err != nil {
         return nil, err
@@ -275,9 +275,9 @@ func GetTickListByOpAdd(opAddNext uint64, goPrev bool) ([]string, error) {
         keyStart = []byte(KeyPrefixIndexToken + "_" + fmt.Sprintf("%020d", opAddNext))
         keyEnd = []byte(KeyPrefixIndexToken + "`")
     }
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, func(i int, key []byte, val []byte) (error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, func(i int, key []byte, val []byte) (bool, error) {
         tickList = append(tickList, string(val))
-        return nil
+        return true, nil
     })
     if err != nil {
         return nil, err
@@ -302,10 +302,10 @@ func SeekIndexRaw(key string, maxCount int, dsc bool) ([]string, []string, error
     }
     stKeyList := make([]string, 0, maxCount)
     stValList := make([]string, 0, maxCount)
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (bool, error) {
         stKeyList = append(stKeyList, string(key))
         stValList = append(stValList, string(val))
-        return nil
+        return true, nil
     })
     if err != nil {
         return nil, nil, err

@@ -61,6 +61,10 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
         return err
     }
     lenVspc := len(eRuntime.vspcList)
+    //lenRollback := len(eRuntime.rollbackList)
+    
+    // ISD ...
+    
     if lenVspc > 0 {
         vspcLast := eRuntime.vspcList[lenVspc-1]
         if eRuntime.cfg.CompactOnInit {

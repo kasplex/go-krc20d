@@ -4,7 +4,7 @@ package storage
 
 import (
     "fmt"
-    // ...
+    //"log/slog"
 )
 
 ////////////////////////////////
@@ -19,7 +19,7 @@ func RequestISD() (uint64, uint64, error) {
         if sRuntime.snapshot.Status == snapshotEMPTY {
             sRuntime.snapshot.Status = snapshotCREAT
         }
-        return 0, 0, fmt.Errorf("preparing isd")
+        return 0, 0, fmt.Errorf("preparing")
     }
     sRuntime.snapshot.Connected ++
     return sRuntime.snapshot.sn, sRuntime.snapshot.DaaScore, nil
@@ -45,6 +45,7 @@ func createISD(dataSynced *DataSyncedType) {
     sRuntime.snapshot.Confirmed = 0
     sRuntime.snapshot.Connected = 0
     sRuntime.snapshot.Status = snapshotCONFM
+    //slog.Info()..
 }
 
 ////////////////////////////////
@@ -58,6 +59,7 @@ func releaseISD() {
     sRuntime.snapshot.Confirmed = 0
     sRuntime.snapshot.Connected = 0
     sRuntime.snapshot.Status = snapshotEMPTY
+    //slog.Info()..
 }
 
 ////////////////////////////////
@@ -81,10 +83,12 @@ func ProcessISD(daaScoreRollback uint64) (error) {
             }
         } else if sRuntime.snapshot.Confirmed > confirmSnapshot {
             sRuntime.snapshot.Status = snapshotREADY
+            //slog.Info()..
         }
     case snapshotREADY:
         if sRuntime.snapshot.Connected > 0 {
             sRuntime.snapshot.Status = snapshotINUSE
+            //slog.Info()..
         } else if sRuntime.snapshot.Confirmed >= dtlSnapshot {
             releaseISD()
         }
@@ -92,7 +96,45 @@ func ProcessISD(daaScoreRollback uint64) (error) {
         if sRuntime.snapshot.Connected <= 0 {
             sRuntime.snapshot.Connected = 0
             sRuntime.snapshot.Status = snapshotREADY
+            //slog.Info()..
         }
     }
     return nil
+}
+
+////////////////////////////////
+func SeekDataISD(cf int, key []byte, pBuffer *[]byte, sizeMax int) (int, []byte, error) {
+    lenKey := len(key)
+    keyStart := make([]byte, 0, lenKey+1)
+    if lenKey > 0 {
+        keyStart = append(keyStart, key...)
+        keyStart = append(keyStart, ' ')
+    }
+    keyEnd := make([]byte, 0, 256)
+    cfNew := cf
+    n := 0
+    for i := cf; i <= cfIndex; i++ {
+        cfNew = i
+        err := seekCF(nil, i, keyStart, nil, 0, false, func(i int, key []byte, val []byte) (bool, error) {
+            *pBuffer = append(*pBuffer, key...)
+            *pBuffer = append(*pBuffer, 61)
+            *pBuffer = append(*pBuffer, val...)
+            *pBuffer = append(*pBuffer, 10)
+            keyEnd = keyEnd[:0]
+            keyEnd = append(keyEnd, key...)
+            n ++
+            if len(*pBuffer) >= sizeMax {
+                return false, nil
+            }
+            return true, nil
+        })
+        if err != nil {
+            return 0, nil, err
+        }
+        if n > 0 {
+            break
+        }
+        keyStart = keyStart[:0]
+    }
+    return cfNew, keyEnd, nil
 }

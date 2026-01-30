@@ -233,4 +233,23 @@ type SnapshotType struct {
     Connected int
 }
 
+////////////////////////////////
+const (
+    IsdCmdRESPONS int = iota
+    IsdCmdREQUEST
+    IsdCmdPULLDAT
+)
+
+////////////////////////////////
+type IsdHeaderType struct {
+    Cmd int `json:"cmd"`
+    Err string `json:"err,omitempty"`
+    Sn uint64 `json:"sn,omitempty"`
+    DaaScore uint64 `json:"daaScore,omitempty"`
+    Done bool `json:"done,omitempty"`
+    Cf int `json:"-"`
+    Key []byte `json:"-"`
+}
+
+
 // ...

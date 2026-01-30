@@ -44,7 +44,7 @@ type ApiConfig struct {
     Timeout int `json:"timeout"`
     ConnMax int `json:"connMax"`
     PortSync int `json:"portSync"`
-    SyncMax int `json:"syncMax"`
+    SyncMax int32 `json:"syncMax"`
     AllowUnsync bool `json:"allowUnsync"`
     AllowDebug bool `json:"allowDebug"`
 }

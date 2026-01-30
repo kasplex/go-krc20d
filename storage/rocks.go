@@ -234,7 +234,7 @@ func getCF(tx *C.rocksdb_transaction_t, cf int, key []byte, fGet func([]byte) (e
 }
 
 ////////////////////////////////
-func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte, maxCount int, dsc bool, fGet func(int, []byte, []byte) (error)) (error) {
+func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte, maxCount int, dsc bool, fGet func(int, []byte, []byte) (bool, error)) (error) {
     lenKeyStart := len(keyStart)
     lenKeyEnd := len(keyEnd)
     if dsc && lenKeyEnd == 0 {
@@ -308,12 +308,12 @@ func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte,
                 val = unsafe.Slice((*byte)(unsafe.Pointer(valC)), lenVal)
             }
         }
-        err := fGet(i, key, val)
+        goNext, err := fGet(i, key, val)
         if err != nil {
             return err
         }
         i ++
-        if maxCount > 0 && i >= maxCount {
+        if !goNext || maxCount > 0 && i >= maxCount {
             break
         }
         if dsc {

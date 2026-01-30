@@ -179,13 +179,25 @@ fmt.Println("error: ", err.Error())
             stLineAfter := make([]string, 0, len(r.State))
             stRowBefore := make([]*storage.DataKvRowType, 0, len(r.State))
             stRowAfter := make([]*storage.DataKvRowType, 0, len(r.State))
-            for _, s := range r.State {
+            keyList := strings.Split(r.ExData["keyList"], ",")
+            for j := range keyList {
+                if keyList[j] == "" {
+                    continue
+                }
+                s, exists := r.State[keyList[j]]
+                if !exists {
+                    continue
+                }
+                stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, keyList[j], c.Session.State[keyList[j]], s)
+                stRowBefore, stRowAfter = makeStRow(stRowBefore, stRowAfter, keyList[j], c.Session.State[keyList[j]], s)
+            }
+            /*for _, s := range r.State {
                 if s == nil {
                     continue
                 }
                 stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, c.Session.State[s["_key"]], s)
                 stRowBefore, stRowAfter = makeStRow(stRowBefore, stRowAfter, c.Session.State[s["_key"]], s)
-            }
+            }*/
             index, _ := strconv.Atoi(c.Session.Op["index"])
             mutex.Lock()
             if stLineBeforeMap[c.Session.Op["score"]] == nil {
@@ -459,8 +471,8 @@ func mergeStLineMap(stLineMap map[int][]string, stRowMap map[int][]*storage.Data
 }
 
 ////////////////////////////////
-func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataKvRowType, stBefore map[string]string, stAfter map[string]string) ([]*storage.DataKvRowType, []*storage.DataKvRowType) {
-    key := stAfter["_key"]
+func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataKvRowType, key string, stBefore map[string]string, stAfter map[string]string) ([]*storage.DataKvRowType, []*storage.DataKvRowType) {
+    //key := stAfter["_key"]
     before := storage.ConvStateToKvRow(key, stBefore)
     after := storage.ConvStateToKvRow(key, stAfter)
     if before != nil {
@@ -473,8 +485,8 @@ func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataK
 }
 
 ////////////////////////////////
-func makeStLine(stLineBefore []string, stLineAfter []string, stBefore map[string]string, stAfter map[string]string) ([]string, []string) {
-    key := stAfter["_key"]
+func makeStLine(stLineBefore []string, stLineAfter []string, key string, stBefore map[string]string, stAfter map[string]string) ([]string, []string) {
+    //key := stAfter["_key"]
     stType := strings.SplitN(key, "_", 2)[0]
     var before string
     var after string
@@ -503,7 +515,7 @@ func makeStLine(stLineBefore []string, stLineAfter []string, stBefore map[string
 
 ////////////////////////////////
 func makeStLineToken(key string, stToken map[string]string, isDeploy bool) (string) {
-    if stToken == nil || stToken["_key"] != "" && len(stToken) == 1 {
+    if stToken == nil /*|| stToken["_key"] != "" && len(stToken) == 1 */{
         return key
     }
     list := make([]string, 0, 16)
@@ -528,7 +540,7 @@ func makeStLineToken(key string, stToken map[string]string, isDeploy bool) (stri
 
 ////////////////////////////////
 func makeStLineBalance(key string, stBalance map[string]string) (string) {
-    if stBalance == nil || stBalance["_key"] != "" && len(stBalance) == 1 {
+    if stBalance == nil /*|| stBalance["_key"] != "" && len(stBalance) == 1 */{
         return key
     }
     list := make([]string, 0, 8)
@@ -542,7 +554,7 @@ func makeStLineBalance(key string, stBalance map[string]string) (string) {
 
 ////////////////////////////////
 func makeStLineMarket(key string, stMarket map[string]string) (string) {
-    if stMarket == nil || stMarket["_key"] != "" && len(stMarket) == 1 {
+    if stMarket == nil /*|| stMarket["_key"] != "" && len(stMarket) == 1 */{
         return key
     }
     list := make([]string, 0, 8)
@@ -556,7 +568,7 @@ func makeStLineMarket(key string, stMarket map[string]string) (string) {
 
 ////////////////////////////////
 func makeStLineBlacklist(key string, stBlacklist map[string]string) (string) {
-    if stBlacklist == nil || stBlacklist["_key"] != "" && len(stBlacklist) == 1 {
+    if stBlacklist == nil /*|| stBlacklist["_key"] != "" && len(stBlacklist) == 1 */{
         return key
     }
     list := make([]string, 0, 4)
@@ -567,7 +579,7 @@ func makeStLineBlacklist(key string, stBlacklist map[string]string) (string) {
 
 ////////////////////////////////
 func makeStLineContract(key string, stContract map[string]string) (string) {
-    if stContract == nil || stContract["_key"] != "" && len(stContract) == 1 {
+    if stContract == nil /*|| stContract["_key"] != "" && len(stContract) == 1 */{
         return key
     }
     list := make([]string, 0, 4)

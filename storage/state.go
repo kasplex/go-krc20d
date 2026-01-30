@@ -257,16 +257,16 @@ func getStateToStringMap(key string) (map[string]string, error) {
 ////////////////////////////////
 func seekStateToStringMapList(keyStart []byte, keyEnd []byte, dsc bool, reverse bool) ([]map[string]string, error) {
     stDataList := make([]map[string]string, 0, pageSizeState)
-    err := seekCF(nil, cfState, keyStart, keyEnd, pageSizeState, dsc, func(i int, key []byte, val []byte) (error) {
+    err := seekCF(nil, cfState, keyStart, keyEnd, pageSizeState, dsc, func(i int, key []byte, val []byte) (bool, error) {
         if val == nil {
-            return nil
+            return true, nil
         }
         decoded, err := ConvStateToStringMap(string(key), val)
         if err != nil {
-            return err
+            return false, err
         }
         stDataList = append(stDataList, decoded)
-        return nil
+        return true, nil
     })
     if err != nil {
         return nil, err
@@ -362,10 +362,10 @@ func SeekStateRaw(key string, maxCount int, dsc bool) ([]string, []string, error
     }
     stKeyList := make([]string, 0, maxCount)
     stValList := make([]string, 0, maxCount)
-    err := seekCF(nil, cfState, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (error) {
+    err := seekCF(nil, cfState, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (bool, error) {
         stKeyList = append(stKeyList, string(key))
         stValList = append(stValList, string(val))
-        return nil
+        return true, nil
     })
     if err != nil {
         return nil, nil, err

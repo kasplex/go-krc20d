@@ -7,11 +7,13 @@ import (
     "sync"
     "strconv"
     "log/slog"
+    "sync/atomic"
     jsoniter "github.com/json-iterator/go"
     "github.com/gofiber/fiber/v2"
     "github.com/gofiber/fiber/v2/middleware/limiter"
     "github.com/gofiber/fiber/v2/middleware/timeout"
     "github.com/gofiber/fiber/v2/middleware/recover"
+    "github.com/gofiber/websocket/v2"
     "kasplex-executor/config"
 )
 
@@ -44,12 +46,37 @@ type runtimeType struct {
 var aRuntime runtimeType
 
 ////////////////////////////////
+const bufferSizeNew = 4194304
+const bufferSizeMax = 8388608
+
+////////////////////////////////
+var wsConns int32
+var bufferPool = sync.Pool{
+	New: func() any {
+        p := new([]byte)
+        *p = make([]byte, 0, bufferSizeNew)
+        return p
+	},
+}
+
+////////////////////////////////
+func getBuffer() (*[]byte) {
+    p := bufferPool.Get().(*[]byte)
+    *p = (*p)[:0]
+    return p
+}
+
+////////////////////////////////
+func putBuffer(p *[]byte) {
+	if cap(*p) <= bufferSizeMax {
+        bufferPool.Put(p)
+	}
+}
+
+////////////////////////////////
 func Init(c chan os.Signal, cfg config.ApiConfig, testnet bool, debug int) {
     aRuntime.cfg = cfg
     aRuntime.testnet = testnet
-    
-    // log/debug ...
-    
     slog.Info("api server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.Port)
     aRuntime.serverHTTP = fiber.New(fiber.Config{DisableStartupMessage:true})
     aRuntime.serverHTTP.Use(limiter.New(limiter.Config{ Max: aRuntime.cfg.ConnMax }))
@@ -93,13 +120,46 @@ func Init(c chan os.Signal, cfg config.ApiConfig, testnet bool, debug int) {
         }
         c <- os.Interrupt
     }()
-    if aRuntime.cfg.PortSync > 0 && aRuntime.cfg.PortSync != aRuntime.cfg.Port {
-        //slog.Info("sync server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortSync)
-
-        // aRuntime.serverWS ...
-        
-    }
+    InitSync(c)
     time.Sleep(345 * time.Millisecond)
+}
+
+////////////////////////////////
+func InitSync(c chan os.Signal) {
+    if aRuntime.cfg.PortSync <= 0 || aRuntime.cfg.PortSync == aRuntime.cfg.Port || aRuntime.cfg.SyncMax <= 0 {
+        return
+    }
+    slog.Info("sync server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortSync)
+    aRuntime.serverWS = fiber.New(fiber.Config{DisableStartupMessage:true})
+    aRuntime.serverWS.Get("/", func(c *fiber.Ctx) error {
+		if !websocket.IsWebSocketUpgrade(c) {
+			return fiber.ErrUpgradeRequired
+		}
+        n := atomic.LoadInt32(&wsConns)
+        if n >= aRuntime.cfg.SyncMax {
+            return c.SendStatus(429)
+        }
+		return c.Next()
+	}, websocket.New(func(conn *websocket.Conn) {
+        n := atomic.AddInt32(&wsConns, 1)
+		defer func() {
+			atomic.AddInt32(&wsConns, -1)
+			conn.Close()
+		}()
+        if n > aRuntime.cfg.SyncMax {
+            return
+        }
+        v1syncISD(conn)
+	}))
+    go func() {
+        err := aRuntime.serverWS.Listen(aRuntime.cfg.Host + ":" + strconv.Itoa(aRuntime.cfg.PortSync))
+        if err != nil {
+            slog.Warn("sync server down.", "error", err.Error())
+        } else {
+            slog.Info("sync server down.")
+        }
+        c <- os.Interrupt
+    }()
 }
 
 ////////////////////////////////
