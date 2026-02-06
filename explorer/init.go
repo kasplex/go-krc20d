@@ -72,7 +72,7 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
             cleanISD(false)
             return err
         }
-        err = initRuntime(true)
+        err = initRuntime(false)
         if err != nil {
             return err
         }
