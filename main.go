@@ -21,7 +21,7 @@ import (
 
 ////////////////////////////////
 func main() {
-    fmt.Println("KASPlex Executor v"+config.Version)
+    fmt.Println("KASPlex KRC-20 Node v"+config.Version)
     
     // Set the correct working directory.
     arg0 := os.Args[0]

@@ -13,7 +13,10 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 type StartupConfig struct {
+    Mode string `json:"mode"`
     Hysteresis int `json:"hysteresis"`
+    SeedISD string `json:"seedISD"`
+    CheckCommitment bool `json:"checkCommitment"`
     DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
     TickReserved []string `json:"tickReserved"`
     CompactOnInit bool `json:"compactOnInit"`
@@ -59,13 +62,11 @@ type Config struct {
 }
 
 ////////////////////////////////
-const Version = "3.01.251231"
+const Version = "3.01.260206"
 
 ////////////////////////////////
 func Load(cfg *Config) {
-
     // File "config.json" should be in the same directory.
-    
     dir, _ := os.Getwd()
     fp, err := os.Open(dir + "/config.json")
     if err != nil {

@@ -21,7 +21,7 @@ const keyPrefixRuntimeSynced = "rtdsynced"
 func GetRuntimeVspcLast(lenVspc int) ([][]byte, []DataVspcType, error) {
     keyList := make([][]byte, 0, lenVspc)
     dataList := make([]DataVspcType, 0, lenVspc)
-    err := seekCF(nil, cfIndex, []byte(keyPrefixRuntimeVspc), []byte(keyPrefixRuntimeVspc+"`"), lenVspc, true, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfIndex, []byte(keyPrefixRuntimeVspc), []byte(keyPrefixRuntimeVspc+"`"), lenVspc, true, nil, func(i int, key []byte, val []byte) (bool, error) {
         data := DataVspcType{}
         err := json.Unmarshal(val, &data)
         if err != nil {
@@ -54,7 +54,7 @@ func GetRuntimeVspcKeyList(daaScore uint64, maxCount int, dsc bool) ([][]byte, e
         keyStart = []byte(keyPrefixRuntimeVspc+ "_" + fmt.Sprintf("%020d",daaScore))
         keyEnd = []byte(keyPrefixRuntimeVspc+"`")
     }
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         keyByte := make([]byte, len(key))
         copy(keyByte, key)
         keyList = append(keyList, keyByte)
@@ -100,7 +100,7 @@ func GetRuntimeRollbackLast(lenRollback int, keyEnd []byte) ([][]byte, []DataRol
     }
     keyList := make([][]byte, 0, lenRollback)
     dataList := make([]DataRollbackType, 0, lenRollback)
-    err := seekCF(nil, cfIndex, []byte(keyPrefixRuntimeRollback), keyEnd, lenRollback, true, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfIndex, []byte(keyPrefixRuntimeRollback), keyEnd, lenRollback, true, nil, func(i int, key []byte, val []byte) (bool, error) {
         data := DataRollbackType{}
         err := json.Unmarshal(val, &data)
         if err != nil {

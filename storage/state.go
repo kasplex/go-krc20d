@@ -5,9 +5,13 @@ package storage
 //#include "rocksdb/c.h"
 import "C"
 import (
+    "fmt"
     "sync"
     "time"
+    "bytes"
     "slices"
+    "strings"
+    "github.com/kasplex/go-muhash"
     "kasplex-executor/config"
 )
 
@@ -42,7 +46,7 @@ func GetStateBatch(stateMap DataStateMapType) (int64, error) {
     }
     mutex := new(sync.RWMutex)
     mtsBatch, err := doGetBatchCF(nil, cfState, keyList, func(i int, val []byte) (error) {
-        if val == nil {
+        if len(val) == 0 {
             return nil
         }
         decoded, err := ConvStateToStringMap(keyList[i], val)
@@ -199,6 +203,16 @@ func RollbackExecutionBatch(daaScore uint64) (int64, error) {
 }
 
 ////////////////////////////////
+func CheckKeyPrefixCF(key string) (int) {
+    for prefix := range KeyPrefixStateMap {
+        if strings.HasPrefix(key, prefix) {
+            return cfState
+        }
+    }
+    return cfIndex
+}
+
+////////////////////////////////
 func GetStateTokenMap(tickList []string) (DataStateMapType, error) {
     lenTick := len(tickList)
     stTokenMap := make(DataStateMapType, lenTick)
@@ -238,7 +252,7 @@ func GetStateStatsData(tick string) (*StateStatsType, error) {
 func getStateToStringMap(key string) (map[string]string, error) {
     var stData map[string]string
     _, err := getCF(nil, cfState, []byte(key), func(val []byte) (error) {
-        if val == nil {
+        if len(val) == 0 {
             return nil
         }
         decoded, err := ConvStateToStringMap(key, val)
@@ -257,8 +271,8 @@ func getStateToStringMap(key string) (map[string]string, error) {
 ////////////////////////////////
 func seekStateToStringMapList(keyStart []byte, keyEnd []byte, dsc bool, reverse bool) ([]map[string]string, error) {
     stDataList := make([]map[string]string, 0, pageSizeState)
-    err := seekCF(nil, cfState, keyStart, keyEnd, pageSizeState, dsc, func(i int, key []byte, val []byte) (bool, error) {
-        if val == nil {
+    err := seekCF(nil, cfState, keyStart, keyEnd, pageSizeState, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
+        if len(val) == 0 {
             return true, nil
         }
         decoded, err := ConvStateToStringMap(string(key), val)
@@ -362,7 +376,7 @@ func SeekStateRaw(key string, maxCount int, dsc bool) ([]string, []string, error
     }
     stKeyList := make([]string, 0, maxCount)
     stValList := make([]string, 0, maxCount)
-    err := seekCF(nil, cfState, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfState, keyStart, keyEnd, maxCount, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         stKeyList = append(stKeyList, string(key))
         stValList = append(stValList, string(val))
         return true, nil
@@ -371,4 +385,37 @@ func SeekStateRaw(key string, maxCount int, dsc bool) ([]string, []string, error
         return nil, nil, err
     }
     return stKeyList, stValList, nil
+}
+
+////////////////////////////////
+func BuildFullStateCommitment() (string, error) {
+    s, _ := createSnapshot()
+    defer destroySnapshot(s)
+    keyPrefixStats := []byte(KeyPrefixStateStats)
+    lenPrefix := len(keyPrefixStats)
+    mhState := muhash.NewMuHash()
+    data := make([]byte, 0, 128)
+    n := 0
+    err := seekCF(nil, cfState, nil, nil, 0, false, s, func(i int, key []byte, val []byte) (bool, error) {
+        if bytes.Compare(key[:lenPrefix],keyPrefixStats) == 0 {
+            return true, nil
+        }
+        data = data[:0]
+        data = append(data, key...)
+        data = append(data, 61)
+        data = append(data, val...)
+        mhState.Add(data)
+        n ++
+        if n >= 10000 {
+            fmt.Print(".")
+            n = 0
+        }
+        return true, nil
+    })
+    if err != nil {
+        return "", err
+    }
+    fmt.Println("")
+    mhSerialized := mhState.Serialize()
+    return fmt.Sprintf("%0384x", (*mhSerialized)[:]), nil
 }

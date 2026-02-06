@@ -52,11 +52,11 @@ const bufferSizeMax = 8388608
 ////////////////////////////////
 var wsConns int32
 var bufferPool = sync.Pool{
-	New: func() any {
+    New: func() any {
         p := new([]byte)
         *p = make([]byte, 0, bufferSizeNew)
         return p
-	},
+    },
 }
 
 ////////////////////////////////
@@ -68,9 +68,9 @@ func getBuffer() (*[]byte) {
 
 ////////////////////////////////
 func putBuffer(p *[]byte) {
-	if cap(*p) <= bufferSizeMax {
+    if cap(*p) <= bufferSizeMax {
         bufferPool.Put(p)
-	}
+    }
 }
 
 ////////////////////////////////
@@ -132,25 +132,25 @@ func InitSync(c chan os.Signal) {
     slog.Info("sync server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortSync)
     aRuntime.serverWS = fiber.New(fiber.Config{DisableStartupMessage:true})
     aRuntime.serverWS.Get("/", func(c *fiber.Ctx) error {
-		if !websocket.IsWebSocketUpgrade(c) {
-			return fiber.ErrUpgradeRequired
-		}
+        if !websocket.IsWebSocketUpgrade(c) {
+            return fiber.ErrUpgradeRequired
+        }
         n := atomic.LoadInt32(&wsConns)
         if n >= aRuntime.cfg.SyncMax {
             return c.SendStatus(429)
         }
-		return c.Next()
-	}, websocket.New(func(conn *websocket.Conn) {
+        return c.Next()
+    }, websocket.New(func(conn *websocket.Conn) {
         n := atomic.AddInt32(&wsConns, 1)
-		defer func() {
-			atomic.AddInt32(&wsConns, -1)
-			conn.Close()
-		}()
+        defer func() {
+            atomic.AddInt32(&wsConns, -1)
+            conn.Close()
+        }()
         if n > aRuntime.cfg.SyncMax {
             return
         }
         v1syncISD(conn)
-	}))
+    }))
     go func() {
         err := aRuntime.serverWS.Listen(aRuntime.cfg.Host + ":" + strconv.Itoa(aRuntime.cfg.PortSync))
         if err != nil {

@@ -16,7 +16,7 @@ import (
     "encoding/hex"
     "golang.org/x/crypto/blake2b"
     "github.com/kasplex/go-lyncs"
-    "github.com/kaspanet/go-muhash"
+    "github.com/kasplex/go-muhash"
     jsoniter "github.com/json-iterator/go"
     "kasplex-executor/config"
     "kasplex-executor/misc"
@@ -118,7 +118,9 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
     mtss := time.Now().UnixMilli()
     rollback := storage.DataRollbackType{
         CheckpointBefore: checkpointLast,
+        CheckpointAfter: checkpointLast,
         StCommitmentBefore: stCommitmentLast,
+        StCommitmentAfter: stCommitmentLast,
     }
     lenOp := len(opDataList)
     if len(opDataList) <= 0 {
@@ -156,7 +158,7 @@ fmt.Println("mts = ", mts0)
     stLineAfterMap := make(map[string]map[int][]string, len(callRunList))
     stRowBeforeMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
     stRowAfterMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
-    mutex := &sync.RWMutex{}
+    mutex := new(sync.RWMutex)
 
 mts1 := time.Now().UnixMilli()
 fmt.Println("mts = ", mts1)
@@ -191,13 +193,6 @@ fmt.Println("error: ", err.Error())
                 stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, keyList[j], c.Session.State[keyList[j]], s)
                 stRowBefore, stRowAfter = makeStRow(stRowBefore, stRowAfter, keyList[j], c.Session.State[keyList[j]], s)
             }
-            /*for _, s := range r.State {
-                if s == nil {
-                    continue
-                }
-                stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, c.Session.State[s["_key"]], s)
-                stRowBefore, stRowAfter = makeStRow(stRowBefore, stRowAfter, c.Session.State[s["_key"]], s)
-            }*/
             index, _ := strconv.Atoi(c.Session.Op["index"])
             mutex.Lock()
             if stLineBeforeMap[c.Session.Op["score"]] == nil {
@@ -235,12 +230,6 @@ fmt.Println("Lyncs TPS: ", (len(callRunList)*1000)/int(mts2-mts1+1))
         opError := ""
         for iScript := range opData.OpScript{
             result := resultMap[opData.Op["score"]][opData.OpIndex[iScript]]
-            
-if result == nil {
-    fmt.Println("opData/iScript/resultMap: ", opData, iScript, resultMap[opData.Op["score"]])
-}
-//fmt.Println("result: ", result)
-            
             if result.Op["accept"] == "1" && iScriptAccept < 0 {
                 iScriptAccept = iScript
             }
@@ -266,9 +255,15 @@ if result == nil {
             opData.SsInfo = countStLine(stMapBefore, stMapAfter)
             opData.MhState = muhash.NewMuHash()
             for _, row := range opData.StRowBefore {
+                if len(row.Val) == 0 {
+                    continue
+                }
                 opData.MhState.Remove(*row.P)
             }
             for _, row := range opData.StRowAfter {
+                if len(row.Val) == 0 {
+                    continue
+                }
                 opData.MhState.Add(*row.P)
             }
         }
@@ -315,21 +310,22 @@ fmt.Println("stateMap["+k+"]: ", v)
         if opData.Op["accept"] == "1" {
             cpHeader := opData.Op["score"] +","+ opData.Tx["id"] +","+ opData.Block["hash"] +","+ opData.OpScript[0]["p"] +","+ opData.OpScript[0]["op"]
             sum := blake2b.Sum256([]byte(cpHeader))
-            cpHeader = fmt.Sprintf("%064x", string(sum[:]))
+            cpHeader = fmt.Sprintf("%064x", sum[:])
             
             cpState := strings.Join(opData.StAfter, ";")
             sum = blake2b.Sum256([]byte(cpState))
-            cpState = fmt.Sprintf("%064x", string(sum[:]))
+            cpState = fmt.Sprintf("%064x", sum[:])
                         
             mhState.Combine(opData.MhState)
             mhSerialized := mhState.Serialize()
-            opData.StCommitment = fmt.Sprintf("%0384x", string((*mhSerialized)[:]))
-            stCommitmentLast = opData.StCommitment
+            sum = blake2b.Sum256((*mhSerialized)[:])
+            opData.StCommitment = fmt.Sprintf("%064x", sum[:])
+            stCommitmentLast = fmt.Sprintf("%0384x", (*mhSerialized)[:])
             
             // replace to StCommitment in Checkpoint In the future HF ...
             
             sum = blake2b.Sum256([]byte(checkpointLast + cpHeader + cpState))
-            opData.Checkpoint = fmt.Sprintf("%064x", string(sum[:]))
+            opData.Checkpoint = fmt.Sprintf("%064x", sum[:])
             
             checkpointLast = opData.Checkpoint
             calculateStStats(opData, stateMap, stStatsMap, stRowMapBefore)
@@ -472,7 +468,6 @@ func mergeStLineMap(stLineMap map[int][]string, stRowMap map[int][]*storage.Data
 
 ////////////////////////////////
 func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataKvRowType, key string, stBefore map[string]string, stAfter map[string]string) ([]*storage.DataKvRowType, []*storage.DataKvRowType) {
-    //key := stAfter["_key"]
     before := storage.ConvStateToKvRow(key, stBefore)
     after := storage.ConvStateToKvRow(key, stAfter)
     if before != nil {
@@ -486,7 +481,6 @@ func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataK
 
 ////////////////////////////////
 func makeStLine(stLineBefore []string, stLineAfter []string, key string, stBefore map[string]string, stAfter map[string]string) ([]string, []string) {
-    //key := stAfter["_key"]
     stType := strings.SplitN(key, "_", 2)[0]
     var before string
     var after string
@@ -515,7 +509,7 @@ func makeStLine(stLineBefore []string, stLineAfter []string, key string, stBefor
 
 ////////////////////////////////
 func makeStLineToken(key string, stToken map[string]string, isDeploy bool) (string) {
-    if stToken == nil /*|| stToken["_key"] != "" && len(stToken) == 1 */{
+    if len(stToken) == 0 {
         return key
     }
     list := make([]string, 0, 16)
@@ -540,7 +534,7 @@ func makeStLineToken(key string, stToken map[string]string, isDeploy bool) (stri
 
 ////////////////////////////////
 func makeStLineBalance(key string, stBalance map[string]string) (string) {
-    if stBalance == nil /*|| stBalance["_key"] != "" && len(stBalance) == 1 */{
+    if len(stBalance) == 0 {
         return key
     }
     list := make([]string, 0, 8)
@@ -554,7 +548,7 @@ func makeStLineBalance(key string, stBalance map[string]string) (string) {
 
 ////////////////////////////////
 func makeStLineMarket(key string, stMarket map[string]string) (string) {
-    if stMarket == nil /*|| stMarket["_key"] != "" && len(stMarket) == 1 */{
+    if len(stMarket) == 0 {
         return key
     }
     list := make([]string, 0, 8)
@@ -568,7 +562,7 @@ func makeStLineMarket(key string, stMarket map[string]string) (string) {
 
 ////////////////////////////////
 func makeStLineBlacklist(key string, stBlacklist map[string]string) (string) {
-    if stBlacklist == nil /*|| stBlacklist["_key"] != "" && len(stBlacklist) == 1 */{
+    if len(stBlacklist) == 0 {
         return key
     }
     list := make([]string, 0, 4)
@@ -579,7 +573,7 @@ func makeStLineBlacklist(key string, stBlacklist map[string]string) (string) {
 
 ////////////////////////////////
 func makeStLineContract(key string, stContract map[string]string) (string) {
-    if stContract == nil /*|| stContract["_key"] != "" && len(stContract) == 1 */{
+    if len(stContract) == 0 {
         return key
     }
     list := make([]string, 0, 4)
@@ -589,6 +583,9 @@ func makeStLineContract(key string, stContract map[string]string) (string) {
     
     return strings.Join(list, ",")
 }
+
+////////////////////////////////
+//func makeStLine..
 
 ////////////////////////////////
 func updateStatsHolderTop(holderTop [][2]string, addrAmtMap map[string]string) ([][2]string) {

@@ -13,8 +13,6 @@ krc20 = {
 		local st = {}
 		local k = ""
 		for i,v in ipairs(t.state or {}) do
-			--v[2]["_key"] = v[1]
-			--st[#st+1] = v[2]
 			st[v[1]] = v[2]
 			k = k..v[1]..","
 		end

@@ -9,28 +9,28 @@ import (
 
 ////////////////////////////////
 func v1syncISD(conn *websocket.Conn) {
-    headerResponse := storage.IsdHeaderType{ Cmd: storage.IsdCmdRESPONS }
+    headerResponse := &storage.IsdHeaderType{ Cmd: storage.IsdCmdRESPONS }
     pDataResponse := getBuffer()
     defer putBuffer(pDataResponse)
     _applyheaderResponse := func () {
-        headerJSON, _ := json.Marshal(&headerResponse)
+        headerJSON, _ := json.Marshal(headerResponse)
         *pDataResponse = (*pDataResponse)[:0]
         *pDataResponse = append(*pDataResponse, headerJSON...)
         *pDataResponse = append(*pDataResponse, 10)
     }
-	for {
+    for {
         conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-		t, dataRequest, err := conn.ReadMessage()
-		if err != nil {
-			break
-		}
-        if t != websocket.BinaryMessage || len(dataRequest) > 256 {
-			continue
-		}
-        headerRequest := storage.IsdHeaderType{}
-        err = json.Unmarshal(dataRequest, &headerRequest)
+        t, dataRequest, err := conn.ReadMessage()
         if err != nil {
-			continue
+            break
+        }
+        if t != websocket.BinaryMessage || len(dataRequest) > 256 {
+            continue
+        }
+        headerRequest := &storage.IsdHeaderType{}
+        err = json.Unmarshal(dataRequest, headerRequest)
+        if err != nil {
+            continue
         }
         headerResponse.Err = ""
         done := false
@@ -56,14 +56,14 @@ func v1syncISD(conn *websocket.Conn) {
                 done = true
                 break
             }
-            cf, key, err := storage.SeekDataISD(headerResponse.Cf, headerResponse.Key, pDataResponse, bufferSizeNew)
+            step, key, err := storage.SeekDataISD(headerResponse.Step, headerResponse.Key, pDataResponse, bufferSizeNew)
             if err != nil {
                 headerResponse.Err = "seek failed"
                 _applyheaderResponse()
                 done = true
                 break
             } else {
-                headerResponse.Cf = cf
+                headerResponse.Step = step
                 headerResponse.Key = key
             }
             if len(key) == 0 {
@@ -80,7 +80,7 @@ func v1syncISD(conn *websocket.Conn) {
         if done {
             break
         }
-	}
+    }
     if headerResponse.Sn > 0 {
         storage.DisconnectISD()
     }

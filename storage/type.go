@@ -6,7 +6,7 @@ package storage
 import "C"
 import (
     "sync"
-    "github.com/kaspanet/go-muhash"
+    "github.com/kasplex/go-muhash"
     "kasplex-executor/protowire"
 )
 
@@ -247,7 +247,7 @@ type IsdHeaderType struct {
     Sn uint64 `json:"sn,omitempty"`
     DaaScore uint64 `json:"daaScore,omitempty"`
     Done bool `json:"done,omitempty"`
-    Cf int `json:"-"`
+    Step int `json:"-"`
     Key []byte `json:"-"`
 }
 

@@ -29,7 +29,7 @@ var tickIgnored = map[string]bool{
 ////////////////////////////////
 // Filter of the tick string for 4-6 chars.
 func filterTick(tick string) (string, error) {
-    tick = strings.Trim(tick, "\r \n")
+    tick = strings.TrimSpace(tick)
     lenTick := len(tick)
     if lenTick >= 64 {
         var err error
@@ -54,7 +54,7 @@ func filterTick(tick string) (string, error) {
 ////////////////////////////////
 // Filter of the address string.
 func filterAddress(address string) (string, error) {
-    address = strings.Trim(address, "\r \n")
+    address = strings.TrimSpace(address)
     address = strings.ToLower(address)
     if address == "" {
         return "", fmt.Errorf("invalid")
@@ -68,7 +68,7 @@ func filterAddress(address string) (string, error) {
 ////////////////////////////////
 // Filter of the uint64 string.
 func filterUint(value string) (uint64, error) {
-    value = strings.Trim(value, "\r \n")
+    value = strings.TrimSpace(value)
     if value == "" {
         return 0, fmt.Errorf("invalid")
     }
@@ -86,7 +86,7 @@ func filterUint(value string) (uint64, error) {
 ////////////////////////////////
 // Filter of the uint64 string.
 func filterUintString(value string) (string, error) {
-    value = strings.Trim(value, "\r \n")
+    value = strings.TrimSpace(value)
     if value == "" {
         return "", fmt.Errorf("invalid")
     }
@@ -101,7 +101,7 @@ func filterUintString(value string) (string, error) {
 ////////////////////////////////
 // Filter of the hash string.
 func filterHash(hash string) (string, error) {
-    hash = strings.Trim(hash, "\r \n")
+    hash = strings.TrimSpace(hash)
     hash = strings.ToLower(hash)
     if len(hash) != 64 {
         return "", fmt.Errorf("invalid")
@@ -114,24 +114,9 @@ func filterHash(hash string) (string, error) {
 }
 
 ////////////////////////////////
-// Filter of the op and p string.
-func filterOp(op string, p string) (string, error) {
-    op = strings.Trim(op, "\r \n")
-    op = strings.ToLower(op)
-    if p == "KRC-20" {
-        if (op != "deploy" && op != "mint" && op != "transfer" && op != "list" && op != "send" && op != "issue" && op != "burn" && op != "blacklist" && op != "chown") {
-            return "", fmt.Errorf("invalid")
-        }
-    } else {
-        return "", fmt.Errorf("invalid")
-    }
-    return op, nil
-}
-
-////////////////////////////////
 // Filter of the amount string.
 func filterAmount(amount string) (string, error) {
-    amount = strings.Trim(amount, "\r \n")
+    amount = strings.TrimSpace(amount)
     if amount == "" {
         return "", fmt.Errorf("invalid")
     }
@@ -159,7 +144,7 @@ func filterAmount(amount string) (string, error) {
 ////////////////////////////////
 // Filter of the dec string.
 func filterDec(dec string) (string, error) {
-    dec = strings.Trim(dec, "\r \n")
+    dec = strings.TrimSpace(dec)
     if dec == "" {
         return "", fmt.Errorf("invalid")
     }

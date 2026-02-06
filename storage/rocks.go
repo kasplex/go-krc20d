@@ -234,7 +234,7 @@ func getCF(tx *C.rocksdb_transaction_t, cf int, key []byte, fGet func([]byte) (e
 }
 
 ////////////////////////////////
-func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte, maxCount int, dsc bool, fGet func(int, []byte, []byte) (bool, error)) (error) {
+func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte, maxCount int, dsc bool, snapshot *C.rocksdb_snapshot_t, fGet func(int, []byte, []byte) (bool, error)) (error) {
     lenKeyStart := len(keyStart)
     lenKeyEnd := len(keyEnd)
     if dsc && lenKeyEnd == 0 {
@@ -260,6 +260,12 @@ func seekCF(tx *C.rocksdb_transaction_t, cf int, keyStart []byte, keyEnd []byte,
     }
     if lenKeyEnd > 0 {
         C.rocksdb_readoptions_set_iterate_upper_bound(rOptSeek, keyEndC, C.size_t(lenKeyEnd))
+    }
+    C.rocksdb_readoptions_set_snapshot(rOptSeek, snapshot)
+    if snapshot == nil {
+        C.rocksdb_readoptions_set_fill_cache(rOptSeek, C.uchar(1))
+    } else {
+        C.rocksdb_readoptions_set_fill_cache(rOptSeek, C.uchar(0))
     }
     var iter *C.rocksdb_iterator_t
     if tx != nil {
@@ -462,10 +468,6 @@ func doGetBatchCF(tx *C.rocksdb_transaction_t, cf int, keyList []string, fGet fu
                     return fGet(index, val)
                 })
                 return err
-                /*if err != nil {
-                    return err
-                }
-                return fGet(index, val)*/
             })
         }
         err := g.Wait()
@@ -488,4 +490,21 @@ func destroySnapshot(snap *C.rocksdb_snapshot_t) {
         return
     }
     C.rocksdb_transactiondb_release_snapshot(sRuntime.rocks, snap)
+}
+
+////////////////////////////////
+func RemoveAllDataRocks(reopen bool) {
+    destroyRocks()
+    var errC *C.char
+    opt := C.rocksdb_options_create()
+    dbNameC := C.CString(sRuntime.cfgRocks.Path)
+    C.rocksdb_destroy_db(opt, dbNameC, &errC)
+    C.free(unsafe.Pointer(dbNameC))
+    if errC != nil {
+        C.rocksdb_free(unsafe.Pointer(errC))
+    }
+    C.rocksdb_options_destroy(opt)
+    if reopen {
+        initRocks()
+    }
 }

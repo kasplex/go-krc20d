@@ -183,9 +183,6 @@ func scan() {
     }
     rollback.DaaScoreStart = vspcListNext[0].DaaScore
     rollback.DaaScoreEnd = vspcListNext[lenVspcNext-1].DaaScore
-    if rollback.CheckpointAfter == "" {
-        rollback.CheckpointAfter = rollback.CheckpointBefore
-    }
     if rollback.OpScoreLast == 0 {
         rollback.OpScoreLast = eRuntime.opScoreLast
         rollback.TxIdLast = eRuntime.txIdLast
@@ -195,11 +192,10 @@ func scan() {
     }
     slog.Debug("operation.ExecuteBatch", "checkpoint", rollback.CheckpointAfter, "lenOperation/mSecond", strconv.Itoa(len(opDataList))+"/"+strconv.Itoa(int(mtsBatchExe)))
     eRuntime.synced = false
-    //if daaScoreAvailable - vspcListNext[lenVspcNext-1].DaaScore > lenReorgDaaScoreMax {
-    //    rollback.StRowMapBefore = nil
-    //    rollback.IddKeyList = nil
-    //}
-    //if (lenVspcNext < 139) {
+    /*if daaScoreAvailable - vspcListNext[lenVspcNext-1].DaaScore > lenReorgDaaScoreMax {
+        rollback.StRowMapBefore = nil
+        rollback.IddKeyList = nil
+    }*/
     if daaScoreAvailable - vspcListNext[lenVspcNext-1].DaaScore < uint64(lenVspcListMax+eRuntime.cfg.Hysteresis) {
         eRuntime.synced = true
     }

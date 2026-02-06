@@ -114,6 +114,36 @@ func SaveIndexBatchRocks(tx *C.rocksdb_transaction_t, opDataList []DataOperation
 }
 
 ////////////////////////////////
+func RebuildIndexTokenRocks() (error) {
+    keyStart := []byte(KeyPrefixStateToken + "_")
+    keyEnd := []byte(KeyPrefixStateToken + "`")
+    err := seekCF(nil, cfState, keyStart, keyEnd, 0, false, nil, func(i int, key []byte, val []byte) (bool, error) {
+        if len(val) == 0 {
+            return true, nil
+        }
+        decoded, err := ConvStateToStringMap(string(key), val)
+        if err != nil {
+            return false, err
+        }
+        if decoded["tick"] == "" || decoded["opadd"] == "" {
+            return true, nil
+        }
+        opAdd, _ := strconv.ParseUint(decoded["opadd"], 10, 64);
+        keyToken := KeyPrefixIndexToken + "_" + fmt.Sprintf("%020d",opAdd)
+        rowToken := BuildDataKvRow(unsafe.Slice(unsafe.StringData(keyToken),len(keyToken)), unsafe.Slice(unsafe.StringData(decoded["tick"]),len(decoded["tick"])))
+        err = putCF(nil, cfIndex, rowToken.Key, rowToken.Val, 0)
+        if err != nil {
+            return false, err
+        }
+        return true, nil
+    })
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
+////////////////////////////////
 func checkDataExpired(daaScore uint64) (error) {
     if sRuntime.cfgRocks.DtlIndex == 0 {
         return nil
@@ -183,9 +213,9 @@ func GetOpListByOpRange(opRange string) ([]*DataIndexOperationType, error) {
     if err != nil {
         return nil, err
     }
-    keyOpScore := KeyPrefixIndexOpScore + "_" + fmt.Sprintf("%015s",opRange)
+    keyOpScore := KeyPrefixIndexOpScore + "_" + fmt.Sprintf("%015d",intOpRange)
     txIdList := make([]string, 0, 64)
-    err = seekCF(nil, cfIndex, []byte(keyOpScore+"_"), []byte(keyOpScore+"`"), 0, false, func(i int, key []byte, val []byte) (bool, error) {
+    err = seekCF(nil, cfIndex, []byte(keyOpScore+"_"), []byte(keyOpScore+"`"), 0, false, nil, func(i int, key []byte, val []byte) (bool, error) {
         txIdList = append(txIdList, string(val))
         return true, nil
     })
@@ -248,7 +278,7 @@ func GetOpTxIdListByOpIndex(address string, tick string, opScoreNext uint64, goP
         keyStart = []byte(key + "_" + fmt.Sprintf("%020d", opScoreNext))
         keyEnd = []byte(key + "`")
     }
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         txIdList = append(txIdList, string(val))
         return true, nil
     })
@@ -275,7 +305,7 @@ func GetTickListByOpAdd(opAddNext uint64, goPrev bool) ([]string, error) {
         keyStart = []byte(KeyPrefixIndexToken + "_" + fmt.Sprintf("%020d", opAddNext))
         keyEnd = []byte(KeyPrefixIndexToken + "`")
     }
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, pageSizeIndex, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         tickList = append(tickList, string(val))
         return true, nil
     })
@@ -302,7 +332,7 @@ func SeekIndexRaw(key string, maxCount int, dsc bool) ([]string, []string, error
     }
     stKeyList := make([]string, 0, maxCount)
     stValList := make([]string, 0, maxCount)
-    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, func(i int, key []byte, val []byte) (bool, error) {
+    err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         stKeyList = append(stKeyList, string(key))
         stValList = append(stValList, string(val))
         return true, nil

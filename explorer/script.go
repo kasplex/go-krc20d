@@ -12,13 +12,9 @@ import (
     "math/big"
     "encoding/hex"
     "github.com/kasplex/go-lyncs"
-    jsoniter "github.com/json-iterator/go"
     "kasplex-executor/misc"
     "kasplex-executor/storage"
 )
-
-////////////////////////////////
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 var scriptKeyForcedCompatibleList = map[string]bool{"from":true,"to":true,"tick":true,"max":true,"lim":true,"pre":true,"dec":true,"amt":true,"utxo":true,"price":true,"mod":true,"name":true,"ca":true}

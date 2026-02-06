@@ -1,15 +1,16 @@
 {
     "startup": {
-		"mode": "node",
+        "mode": "node",
         "hysteresis": 5,
-		"seedISD": "ws://123.0.0.1:8006"
+        "seedISD": "ws://123.0.0.1:8006",
+        "checkCommitment": false
     },
     "node": {
         "grpc": [
             "127.0.0.1:16110",
             "127.0.0.1:16110"
         ]
-	},
+    },
     "cassandra": {
         "host": "",
         "port": 9142,
@@ -36,7 +37,7 @@
         "connMax": 100,
         "allowUnsync": false,
         "allowDebug": false,
-        "portSync": 0,
+        "portSync": 8006,
         "syncMax": 4
     },
     "testnet": false,

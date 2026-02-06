@@ -4,21 +4,22 @@ go 1.25.5
 
 require (
 	github.com/gocql/gocql v1.7.0
-	github.com/gofiber/fiber/v2 v2.52.10
+	github.com/gofiber/fiber/v2 v2.52.11
 	github.com/gofiber/websocket/v2 v2.2.1
 	github.com/json-iterator/go v1.1.12
-	github.com/kaspanet/go-muhash v0.0.4
-	github.com/kasplex/go-lyncs v0.0.0-20260130133131-b03170073305
+	github.com/kasplex/go-lyncs v0.0.0-20260131145858-85b769506c7f
+	github.com/kasplex/go-muhash v0.0.0-20260202064440-4aa32098617b
 	golang.org/x/crypto v0.47.0
 	golang.org/x/sync v0.19.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
+	nhooyr.io/websocket v1.8.17
 )
 
 require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.4.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
 	github.com/fasthttp/websocket v1.5.12 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect

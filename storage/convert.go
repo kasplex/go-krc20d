@@ -3,6 +3,8 @@
 package storage
 
 import (
+    "fmt"
+    "bytes"
     "unsafe"
     "strconv"
     "strings"
@@ -25,6 +27,21 @@ func BuildDataKvRow(key []byte, val []byte) (*DataKvRowType) {
     copy(row.Val, val)
     raw[lenKey] = 61
     return row
+}
+
+////////////////////////////////
+func ParseDataKvRow(data []byte) (*DataKvRowType, error) {
+    i := bytes.IndexByte(data, 61)
+    if i <= 0 {
+        return nil, fmt.Errorf("data invalid")
+    }
+    raw := data
+    row := &DataKvRowType{
+        P: &raw,
+        Key: raw[:i],
+        Val: raw[i+1:],
+    }
+    return row, nil
 }
 
 ////////////////////////////////
@@ -66,7 +83,7 @@ func ConvIndexOpDataToKvRow(key string, opData *DataOperationType) (*DataKvRowTy
 ////////////////////////////////
 func ConvStateToKvRow(key string, data map[string]string) (*DataKvRowType) {
     lenKey := len(key)
-    if data == nil /*|| data["_key"] != "" && len(data) == 1 */{
+    if len(data) == 0 {
         return BuildDataKvRow(unsafe.Slice(unsafe.StringData(key),lenKey), nil)
     }
     var val []byte

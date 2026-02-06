@@ -8,10 +8,14 @@ import (
     "time"
     "context"
     "log/slog"
+    jsoniter "github.com/json-iterator/go"
     "kasplex-executor/config"
     "kasplex-executor/storage"
     "kasplex-executor/operation"
 )
+
+////////////////////////////////
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 type runtimeType struct {
@@ -61,10 +65,20 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
         return err
     }
     lenVspc := len(eRuntime.vspcList)
-    //lenRollback := len(eRuntime.rollbackList)
-    
-    // ISD ...
-    
+    lenRollback := len(eRuntime.rollbackList)
+    if lenVspc == 0 && lenRollback == 0 && eRuntime.cfg.SeedISD != "" {
+        err = runISD(eRuntime.cfg.SeedISD)
+        if err != nil {
+            cleanISD(false)
+            return err
+        }
+        err = initRuntime(true)
+        if err != nil {
+            return err
+        }
+        lenVspc = len(eRuntime.vspcList)
+        lenRollback = len(eRuntime.rollbackList)
+    }
     if lenVspc > 0 {
         vspcLast := eRuntime.vspcList[lenVspc-1]
         if eRuntime.cfg.CompactOnInit {
@@ -75,6 +89,17 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
         slog.Info("explorer.Init", "lastVspcDaaScore", vspcLast.DaaScore, "lastVspcBlockHash", vspcLast.Hash)
     } else {
         slog.Info("explorer.Init", "lastVspcDaaScore", eRuntime.cfg.DaaScoreRange[0][0], "lastVspcBlockHash", "")
+    }
+    if eRuntime.cfg.CheckCommitment && lenRollback > 0 {
+        stCommitment, err := storage.BuildFullStateCommitment()
+        if err != nil {
+            return err
+        }
+        if stCommitment != eRuntime.rollbackList[lenRollback-1].StCommitmentAfter {
+            slog.Warn("storage.BuildFullStateCommitment mismatch.", "stCommitmentRebuild", stCommitment, "stCommitmentLast", eRuntime.rollbackList[lenRollback-1].StCommitmentAfter)
+            //return fmt.Errorf("state mismatch")
+        }
+        eRuntime.rollbackList[lenRollback-1].StCommitmentAfter = stCommitment
     }
     slog.Info("explorer ready.")
     return nil
