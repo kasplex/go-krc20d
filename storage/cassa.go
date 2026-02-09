@@ -13,8 +13,8 @@ import (
 )
 
 ////////////////////////////////
-const numConns = 10
-const inMaxCassa = 10
+const numConns = 5
+const inMaxCassa = 40
 const nQueryCassa = 5
 const nBatchMaxCassa = 200
 const mtsDelayExecuteCassa = 5

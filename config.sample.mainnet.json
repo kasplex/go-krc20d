@@ -3,6 +3,7 @@
         "mode": "node",
         "hysteresis": 5,
         "seedISD": "ws://123.0.0.1:8006",
+        "fullISD": false,
         "checkCommitment": false
     },
     "node": {
@@ -37,8 +38,9 @@
         "connMax": 100,
         "allowUnsync": false,
         "allowDebug": false,
-        "portSync": 8006,
-        "syncMax": 4
+        "portISD": 8006,
+        "connMaxISD": 4,
+        "fullISD": false
     },
     "testnet": false,
     "debug": 2

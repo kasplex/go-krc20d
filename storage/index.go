@@ -39,7 +39,7 @@ func SaveIndexBatchRocks(tx *C.rocksdb_transaction_t, opDataList []DataOperation
     rowList := make([]*DataKvRowType, 0, lenOpData*4)
     daaScoreList := make([]uint64, 0, lenOpData*4)
     dtlOffset := uint64(0)
-    if sRuntime.cfgRocks.DtlIndex > sRuntime.cfgRocks.DtlFailed {
+    if sRuntime.cfgRocks.DtlFailed > 0 && sRuntime.cfgRocks.DtlIndex > sRuntime.cfgRocks.DtlFailed {
         dtlOffset = sRuntime.cfgRocks.DtlIndex - sRuntime.cfgRocks.DtlFailed
     }
     mutex := new(sync.Mutex)
@@ -319,7 +319,7 @@ func GetTickListByOpAdd(opAddNext uint64, goPrev bool) ([]string, error) {
 }
 
 ////////////////////////////////
-func SeekIndexRaw(key string, maxCount int, dsc bool) ([]string, []string, error) {
+func SeekIndexRaw(key string, maxCount int, dsc bool, keyOnly bool) ([]string, []string, error) {
     if maxCount <= 0 || maxCount > pageSizeIndex {
         maxCount = pageSizeIndex
     }
@@ -334,7 +334,11 @@ func SeekIndexRaw(key string, maxCount int, dsc bool) ([]string, []string, error
     stValList := make([]string, 0, maxCount)
     err := seekCF(nil, cfIndex, keyStart, keyEnd, maxCount, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         stKeyList = append(stKeyList, string(key))
-        stValList = append(stValList, string(val))
+        if keyOnly {
+            stValList = append(stValList, "")
+        } else {
+            stValList = append(stValList, string(val))
+        }
         return true, nil
     })
     if err != nil {

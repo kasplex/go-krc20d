@@ -16,6 +16,7 @@ type StartupConfig struct {
     Mode string `json:"mode"`
     Hysteresis int `json:"hysteresis"`
     SeedISD string `json:"seedISD"`
+    FullISD bool `json:"fullISD"`
     CheckCommitment bool `json:"checkCommitment"`
     DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
     TickReserved []string `json:"tickReserved"`
@@ -46,10 +47,12 @@ type ApiConfig struct {
     Port int `json:"port"`
     Timeout int `json:"timeout"`
     ConnMax int `json:"connMax"`
-    PortSync int `json:"portSync"`
-    SyncMax int32 `json:"syncMax"`
+    PortISD int `json:"portISD"`
+    ConnMaxISD int32 `json:"connMaxISD"`
+    FullISD bool `json:"fullISD"`
     AllowUnsync bool `json:"allowUnsync"`
     AllowDebug bool `json:"allowDebug"`
+    AllowVspc bool `json:"-"`
 }
 type Config struct {
     Startup StartupConfig `json:"startup"`
@@ -80,4 +83,7 @@ func Load(cfg *Config) {
     }
     cfg.Startup.Lyncs = cfg.Lyncs
     cfg.Startup.CompactOnInit = cfg.Rocksdb.CompactOnInit
+    if cfg.Startup.Mode != "node" {
+        cfg.Api.AllowVspc = true
+    }
 }

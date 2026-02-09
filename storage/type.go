@@ -238,6 +238,7 @@ const (
     IsdCmdRESPONS int = iota
     IsdCmdREQUEST
     IsdCmdPULLDAT
+    IsdCmdPULLALL
 )
 
 ////////////////////////////////

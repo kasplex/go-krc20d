@@ -363,7 +363,7 @@ func GetStateMarketData(tick string, address string, txId string) (map[string]st
 }
 
 ////////////////////////////////
-func SeekStateRaw(key string, maxCount int, dsc bool) ([]string, []string, error) {
+func SeekStateRaw(key string, maxCount int, dsc bool, keyOnly bool) ([]string, []string, error) {
     if maxCount <= 0 || maxCount > pageSizeState {
         maxCount = pageSizeState
     }
@@ -378,7 +378,11 @@ func SeekStateRaw(key string, maxCount int, dsc bool) ([]string, []string, error
     stValList := make([]string, 0, maxCount)
     err := seekCF(nil, cfState, keyStart, keyEnd, maxCount, dsc, nil, func(i int, key []byte, val []byte) (bool, error) {
         stKeyList = append(stKeyList, string(key))
-        stValList = append(stValList, string(val))
+        if keyOnly {
+            stValList = append(stValList, "")
+        } else {
+            stValList = append(stValList, string(val))
+        }
         return true, nil
     })
     if err != nil {

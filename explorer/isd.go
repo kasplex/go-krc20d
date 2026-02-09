@@ -84,6 +84,9 @@ func runISD(seedISD string) (error) {
     lenTotal := 0
     nilCount := 0
     headerRequest.Cmd = storage.IsdCmdPULLDAT
+    if eRuntime.cfg.FullISD {
+        headerRequest.Cmd = storage.IsdCmdPULLALL
+    }
     var data []byte
     mhState := muhash.NewMuHash()
     keyPrefixStats := []byte(storage.KeyPrefixStateStats)
@@ -238,6 +241,6 @@ func searchNodeISD(seedISD string) (string, error) {
 
 ////////////////////////////////
 func cleanISD(reopen bool) {
-    slog.Warn("storage.RemoveAllDataRocks")
+    slog.Info("storage.RemoveAllDataRocks")
     storage.RemoveAllDataRocks(reopen)
 }

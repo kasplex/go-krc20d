@@ -159,4 +159,74 @@ func GetNodeTransactionDataList(txDataList []DataTransactionType) ([]DataTransac
     return txDataList, mtsBatch, nil
 }
 
-// ...
+////////////////////////////////
+func GetNodeArchiveVspcTxDataList(daaScore string) (string, string, string, []string, map[string]string, error) {
+    rowVspc := sRuntime.sessionCassa.Query(cqlnGetVspcByDaaScore, daaScore)
+    defer rowVspc.Release()
+    var hash, txId string
+    err := rowVspc.Scan(&hash, &txId)
+    if err != nil {
+        if err.Error() == "not found" {
+            return "", "", "", nil, nil, nil
+        }
+        return "", "", "", nil, nil, err
+    }
+    rowBlock := sRuntime.sessionCassa.Query(cqlnGetBlockByHash, hash)
+    defer rowBlock.Release()
+    var header, verbose string
+    err = rowBlock.Scan(&header, &verbose)
+    if err != nil {
+        return "", "", "", nil, nil, err
+    }
+    var txIdList []string
+    if txId != "" {
+        txIdList = strings.Split(txId, ",")
+    } else {
+        return hash, header, verbose, nil, nil, nil
+    }
+    intDaascore, _ := strconv.ParseUint(daaScore, 10, 64)
+    if intDaascore < 110165000 {
+        sort.Strings(txIdList)
+    }
+    lenTxId := len(txIdList)
+    txDataMap := make(map[string]string, lenTxId)
+    mutex := new(sync.RWMutex)
+    _, err = startQueryBatchInCassa(lenTxId, func(iStart int, iEnd int, session *gocql.Session) (error) {
+        txIdListIn := make([]string, 0, iEnd-iStart)
+        for i := iStart; i < iEnd; i ++ {
+            txIdListIn = append(txIdListIn, "'"+txIdList[i]+"'")
+        }
+        cql := strings.Replace(cqlnGetTransactionData, "{txidIn}", strings.Join(txIdListIn,","), 1)
+        row := session.Query(cql).Iter().Scanner()
+        for row.Next() {
+            var txId, data string
+            err := row.Scan(&txId, &data)
+            if err != nil {
+                return err
+            }
+            mutex.Lock()
+            txDataMap[txId] = data
+            mutex.Unlock()
+        }
+        return row.Err()
+    })
+    if err != nil {
+        return "", "", "", nil, nil, err
+    }
+    return hash, header, verbose, txIdList, txDataMap, nil
+}
+
+////////////////////////////////
+func GetNodeArchiveTxData(txId string) (string, error) {
+    row := sRuntime.sessionCassa.Query(cqlnGetTransactionByTxid, txId)
+    defer row.Release()
+    var data string
+    err := row.Scan(&data)
+    if err != nil {
+        if err.Error() == "not found" {
+            return "", nil
+        }
+        return "", err
+    }
+    return data, nil
+}

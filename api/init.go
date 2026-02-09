@@ -107,6 +107,8 @@ func Init(c chan os.Signal, cfg config.ApiConfig, testnet bool, debug int) {
     aRuntime.serverHTTP.Get("/v1/krc20/market/:tick", v1routeMarketList)
     aRuntime.serverHTTP.Get("/v1/krc20/blacklist/:tick", v1routeBlackList)
     aRuntime.serverHTTP.Get("/v1/archive/oplist/:oprange", v1ArchiveOpList)
+    aRuntime.serverHTTP.Get("/v1/archive/vspc/:daascore", v1ArchiveVspc)
+    aRuntime.serverHTTP.Get("/v1/archive/transaction/:id", v1ArchiveTransaction)
     aRuntime.serverHTTP.Get("/v1/debug/database/:cf", v1DebugDatabaseSeek)
     aRuntime.serverHTTP.All("*", func(c *fiber.Ctx) (error) {
         return c.SendStatus(404)
@@ -126,17 +128,17 @@ func Init(c chan os.Signal, cfg config.ApiConfig, testnet bool, debug int) {
 
 ////////////////////////////////
 func InitSync(c chan os.Signal) {
-    if aRuntime.cfg.PortSync <= 0 || aRuntime.cfg.PortSync == aRuntime.cfg.Port || aRuntime.cfg.SyncMax <= 0 {
+    if aRuntime.cfg.PortISD <= 0 || aRuntime.cfg.PortISD == aRuntime.cfg.Port || aRuntime.cfg.ConnMaxISD <= 0 {
         return
     }
-    slog.Info("sync server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortSync)
+    slog.Info("sync server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortISD)
     aRuntime.serverWS = fiber.New(fiber.Config{DisableStartupMessage:true})
     aRuntime.serverWS.Get("/", func(c *fiber.Ctx) error {
         if !websocket.IsWebSocketUpgrade(c) {
             return fiber.ErrUpgradeRequired
         }
         n := atomic.LoadInt32(&wsConns)
-        if n >= aRuntime.cfg.SyncMax {
+        if n >= aRuntime.cfg.ConnMaxISD {
             return c.SendStatus(429)
         }
         return c.Next()
@@ -146,13 +148,13 @@ func InitSync(c chan os.Signal) {
             atomic.AddInt32(&wsConns, -1)
             conn.Close()
         }()
-        if n > aRuntime.cfg.SyncMax {
+        if n > aRuntime.cfg.ConnMaxISD {
             return
         }
         v1syncISD(conn)
     }))
     go func() {
-        err := aRuntime.serverWS.Listen(aRuntime.cfg.Host + ":" + strconv.Itoa(aRuntime.cfg.PortSync))
+        err := aRuntime.serverWS.Listen(aRuntime.cfg.Host + ":" + strconv.Itoa(aRuntime.cfg.PortISD))
         if err != nil {
             slog.Warn("sync server down.", "error", err.Error())
         } else {

@@ -62,6 +62,7 @@ func initRocks() {
     C.rocksdb_options_set_write_buffer_size(dbOpt, C.size_t(256*1024*1024))
     C.rocksdb_options_set_max_write_buffer_number(dbOpt, C.int(4))
     C.rocksdb_options_set_max_background_compactions(dbOpt, C.int(4))
+    C.rocksdb_options_set_prefix_extractor(dbOpt, C.rocksdb_slicetransform_create_fixed_prefix(C.size_t(8)))
     bbOpt = C.rocksdb_block_based_options_create()
     C.rocksdb_block_based_options_set_block_size(bbOpt, C.size_t(8*1024))
     C.rocksdb_block_based_options_set_cache_index_and_filter_blocks(bbOpt, C.uchar(1))
@@ -401,6 +402,27 @@ func deleteCF(tx *C.rocksdb_transaction_t, cf int, key []byte) (error) {
 }
 
 ////////////////////////////////
+func deleteRangeCF(cf int, keyStart []byte, keyEnd []byte) (error) {
+    lenStart := len(keyStart)
+    lenEnd := len(keyEnd)
+    if lenStart == 0 || lenEnd == 0 {
+        return fmt.Errorf("nil key")
+    }
+    opt := C.rocksdb_writeoptions_create()
+    defer C.rocksdb_writeoptions_destroy(opt)
+    var errC *C.char
+    dbBase := C.rocksdb_transactiondb_get_base_db(sRuntime.rocks)
+    defer C.rocksdb_transactiondb_close_base_db(dbBase)
+    C.rocksdb_delete_range_cf(dbBase, opt, sRuntime.cfHandleList[cf], (*C.char)(unsafe.Pointer(&keyStart[0])), C.size_t(len(keyStart)), (*C.char)(unsafe.Pointer(&keyEnd[0])), C.size_t(len(keyEnd)), &errC)
+    runtime.KeepAlive(keyStart)
+    runtime.KeepAlive(keyEnd)
+    if errC != nil {
+        return errRocks(errC)
+    }
+    return nil
+}
+
+////////////////////////////////
 func txBegin() (*C.rocksdb_transaction_t) {
     return C.rocksdb_transaction_begin(sRuntime.rocks, wOpt, txOpt, nil)
 }
@@ -442,7 +464,9 @@ func txRollback(tx *C.rocksdb_transaction_t) (error) {
 
 ////////////////////////////////
 func CompactCF(cf int) {
-    C.rocksdb_compact_range_cf(C.rocksdb_transactiondb_get_base_db(sRuntime.rocks), sRuntime.cfHandleList[cf], nil, 0, nil, 0)
+    dbBase := C.rocksdb_transactiondb_get_base_db(sRuntime.rocks)
+    defer C.rocksdb_transactiondb_close_base_db(dbBase)
+    C.rocksdb_compact_range_cf(dbBase, sRuntime.cfHandleList[cf], nil, 0, nil, 0)
 }
 
 ////////////////////////////////

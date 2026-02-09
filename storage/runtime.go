@@ -6,6 +6,7 @@ package storage
 import "C"
 import (
     "fmt"
+    "time"
     "slices"
     "strconv"
 )
@@ -78,13 +79,7 @@ func SetRuntimeVspcLast(tx *C.rocksdb_transaction_t, list []DataVspcType) (error
         if err != nil {
             return err
         }
-        daaScore := list[i].DaaScore
-        if dtlIndexRuntime > sRuntime.cfgRocks.DtlIndex {
-            daaScore += dtlIndexRuntime - sRuntime.cfgRocks.DtlIndex
-        } else {
-            daaScore -= sRuntime.cfgRocks.DtlIndex - dtlIndexRuntime
-        }
-        err = putCF(tx, cfIndex, []byte(key), val, daaScore)
+        err = putCF(tx, cfIndex, []byte(key), val, 0)
         if err != nil {
             return err
         }
@@ -128,13 +123,27 @@ func SetRuntimeRollbackLast(tx *C.rocksdb_transaction_t, rollback *DataRollbackT
     if err != nil {
         return err
     }
-    daaScore := rollback.DaaScoreEnd
-    if dtlIndexRuntime > sRuntime.cfgRocks.DtlIndex {
-        daaScore += dtlIndexRuntime - sRuntime.cfgRocks.DtlIndex
-    } else {
-        daaScore -= sRuntime.cfgRocks.DtlIndex - dtlIndexRuntime
+    return putCF(tx, cfIndex, []byte(key), val, 0)
+}
+
+////////////////////////////////
+// Delete the expired vspc/rollback data list.
+func DelRuntimeExpired(daaScoreLast uint64) (int64, error) {
+    mts := time.Now().UnixMilli()
+    daaScoreLast -= dtlIndexRuntime
+    keyStart := keyPrefixRuntimeVspc
+    keyEnd := keyPrefixRuntimeVspc + "_" + fmt.Sprintf("%020d",daaScoreLast)
+    err := deleteRangeCF(cfIndex, []byte(keyStart), []byte(keyEnd))
+    if err != nil {
+        return 0, err
     }
-    return putCF(tx, cfIndex, []byte(key), val, daaScore)
+    keyStart = keyPrefixRuntimeRollback
+    keyEnd = keyPrefixRuntimeRollback + "_" + fmt.Sprintf("%020d",daaScoreLast)
+    err = deleteRangeCF(cfIndex, []byte(keyStart), []byte(keyEnd))
+    if err != nil {
+        return 0, err
+    }
+    return time.Now().UnixMilli()-mts, nil
 }
 
 ////////////////////////////////

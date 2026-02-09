@@ -76,6 +76,7 @@ func ProcessISD(daaScoreRollback uint64) (error) {
     switch sRuntime.snapshot.Status {
     case snapshotCREAT:
         if !dataSynced.Synced{
+            sRuntime.snapshot.Status = snapshotEMPTY
             return fmt.Errorf("unsynced")
         }
         createISD(dataSynced)
@@ -106,7 +107,7 @@ func ProcessISD(daaScoreRollback uint64) (error) {
 }
 
 ////////////////////////////////
-func SeekDataISD(step int, key []byte, pBuffer *[]byte, sizeMax int) (int, []byte, error) {
+func SeekDataISD(step int, key []byte, pBuffer *[]byte, sizeMax int, fullISD bool) (int, []byte, error) {
     lenKey := len(key)
     keyStart := make([]byte, 0, lenKey+1)
     if lenKey > 0 {
@@ -121,13 +122,21 @@ func SeekDataISD(step int, key []byte, pBuffer *[]byte, sizeMax int) (int, []byt
         switch i {
         case 0:
             cf = 0
+            keyEnd = nil
         case 1:
             cf = 1
-            if len(keyStart) == 0 {
-                keyStart = []byte(keyPrefixRuntimeVspc+"_"+fmt.Sprintf("%020d",sRuntime.snapshot.DaaScore-36000))
+            if fullISD {
+                keyEnd = nil
+            } else {
+                if len(keyStart) == 0 {
+                    keyStart = []byte(keyPrefixRuntimeVspc+"_"+fmt.Sprintf("%020d",sRuntime.snapshot.DaaScore-36000))
+                }
+                keyEnd = []byte(keyPrefixRuntimeVspc+"`")
             }
-            keyEnd = []byte(keyPrefixRuntimeVspc+"`")
         case 2:
+            if fullISD {
+                return i, nil, nil
+            }
             cf = 1
             if len(keyStart) == 0 {
                 keyStart = []byte(keyPrefixRuntimeRollback+"_"+fmt.Sprintf("%020d",sRuntime.snapshot.DaaScore-36000))

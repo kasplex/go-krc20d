@@ -23,6 +23,7 @@ import (
 ////////////////////////////////
 var lenVspcListMaxAdj = lenVspcListMax
 var lenVspcBatch = uint64(lenVspcListMax - lenVspcCheck)
+var loopScan = 300
 
 ////////////////////////////////
 func scan() {
@@ -43,6 +44,24 @@ func scan() {
             daaScoreStart = eRuntime.vspcList[0].DaaScore
         }
     }
+    passed, daaScoreStartNext := checkDaaScoreRange(daaScoreStart)
+    if !passed {
+        daaScoreStart = daaScoreStartNext - uint64(lenVspcCheck)
+    }
+    
+    // Some things to clean up.
+    loopScan ++
+    if loopScan > 300 {
+        loopScan = 0
+        daaScoreLast := vspcLast.DaaScore
+        mtsBatchDel, err := storage.DelRuntimeExpired(daaScoreLast)
+        if err != nil {
+            slog.Warn("storage.DelRuntimeExpired failed.", "error", err.Error())
+        } else {
+            slog.Debug("storage.DelRuntimeExpired", "mSecond", mtsBatchDel)
+        }
+    }
+    
     // Get the maximum available daascore from cluster db.
     _, _, daaScoreAvailable, err := storage.GetRuntimeChainBlockLast()
     if err != nil {

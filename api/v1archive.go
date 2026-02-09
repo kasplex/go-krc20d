@@ -10,17 +10,45 @@ import (
 
 ////////////////////////////////
 type v1resultArchiveOpList struct {
-    Opscore uint64 `json:"opscore,omitempty"`
+    Opscore uint64 `json:"opscore"`
     Addressaffc string `json:"addressaffc,omitempty"`
-    Script string `json:"script,omitempty"`
-    State string `json:"state,omitempty"`
+    Script string `json:"script"`
+    State string `json:"state"`
     Tickaffc string `json:"tickaffc,omitempty"`
-    Txid string `json:"txid,omitempty"`
+    Txid string `json:"txid"`
 }
 
 type v1responseArchiveOpList struct {
     Message string `json:"message"`
     Result []v1resultArchiveOpList `json:"result"`
+}
+
+////////////////////////////////
+type v1resultArchiveBlock struct {
+    Hash string `json:"hash"`
+    DaaScore uint64 `json:"daascore"`
+    Header string `json:"header"`
+    Verbose string `json:"verbose"`
+}
+
+type v1resultArchiveTransaction struct {
+    Txid string `json:"txid"`
+    Data string `json:"data"`
+}
+
+type v1resultArchiveVspc struct {
+    ChainBlock *v1resultArchiveBlock `json:"chainBlock"`
+    TxList []*v1resultArchiveTransaction `json:"txList"`
+}
+
+type v1responseArchiveVspc struct {
+    Message string `json:"message"`
+    Result []v1resultArchiveVspc `json:"result"`
+}
+
+type v1responseArchiveTransaction struct {
+    Message string `json:"message"`
+    Result *v1resultArchiveTransaction `json:"result"`
 }
 
 ////////////////////////////////
@@ -34,6 +62,7 @@ func v1ArchiveOpList(c *fiber.Ctx) (error) {
         r.Message = v1msgUnsynced
         return c.Status(403).JSON(r)
     }
+    r.Result = []v1resultArchiveOpList{}
     opRange := c.Params("oprange")
     opRange, _ = filterUintString(opRange)
     if opRange == "" {
@@ -78,4 +107,82 @@ func v1ArchiveOpList(c *fiber.Ctx) (error) {
     return c.JSON(r)
 }
 
-// ...
+////////////////////////////////
+func v1ArchiveVspc(c *fiber.Ctx) (error) {
+    if !aRuntime.cfg.AllowVspc {
+        return c.Status(404).SendString("api disabled")
+    }
+    r := &v1responseArchiveVspc{}
+    available, _, info, err := getInfoKRC20()
+    if err != nil || !available {
+        r.Message = v1msgUnsynced
+        return c.Status(403).JSON(r)
+    }
+    r.Result = []v1resultArchiveVspc{}
+    daaScore, _ := filterUintString(c.Params("daascore"))
+    if daaScore == "" {
+        r.Message = "daaScore invalid"
+        return c.Status(403).JSON(r)
+    }
+    intDaascore, _ := strconv.ParseUint(daaScore, 10, 64)
+    daaScoreLast, _ := strconv.ParseUint(info.DaaScore, 10, 64)
+    if intDaascore > daaScoreLast-daaScoreHysteresis {
+        r.Message = "daaScore " + v1msgNotReached
+        return c.Status(403).JSON(r)
+    }
+    hash, header, verbose, txIdList, txDataMap, err := storage.GetNodeArchiveVspcTxDataList(daaScore)
+    if err != nil {
+        r.Message = v1msgInternalError
+        return c.Status(403).JSON(r)
+    }
+    r.Result = make([]v1resultArchiveVspc, 0, 1)
+    if hash == "" {
+        r.Message = v1msgSuccessful
+        return c.JSON(r)
+    }
+    r.Result = append(r.Result, v1resultArchiveVspc{
+        ChainBlock: &v1resultArchiveBlock{
+            Hash: hash,
+            DaaScore: intDaascore,
+            Header: header,
+            Verbose: verbose,
+        },
+        TxList: make([]*v1resultArchiveTransaction, 0, len(txIdList)),
+    })
+    for _, txId := range txIdList {
+        r.Result[0].TxList = append(r.Result[0].TxList, &v1resultArchiveTransaction{
+            Txid: txId,
+            Data: txDataMap[txId],
+        })
+    }
+    r.Message = v1msgSuccessful
+    return c.JSON(r)
+}
+
+////////////////////////////////
+func v1ArchiveTransaction(c *fiber.Ctx) (error) {
+    if !aRuntime.cfg.AllowVspc {
+        return c.Status(404).SendString("api disabled")
+    }
+    r := &v1responseArchiveTransaction{}
+    txId, _ := filterHash(c.Params("id"))
+    if txId == "" {
+        r.Message = "txID invalid"
+        return c.Status(403).JSON(r)
+    }
+    txData, err := storage.GetNodeArchiveTxData(txId)
+    if err != nil {
+        r.Message = v1msgInternalError
+        return c.Status(403).JSON(r)
+    }
+    if txData == "" {
+        r.Message = "tx not found"
+        return c.Status(403).JSON(r)
+    }
+    r.Result = &v1resultArchiveTransaction{
+        Txid: txId,
+        Data: txData,
+    }
+    r.Message = v1msgSuccessful
+    return c.JSON(r)
+}

@@ -18,6 +18,7 @@ func v1syncISD(conn *websocket.Conn) {
         *pDataResponse = append(*pDataResponse, headerJSON...)
         *pDataResponse = append(*pDataResponse, 10)
     }
+    fullISD := false
     for {
         conn.SetReadDeadline(time.Now().Add(30 * time.Second))
         t, dataRequest, err := conn.ReadMessage()
@@ -34,6 +35,12 @@ func v1syncISD(conn *websocket.Conn) {
         }
         headerResponse.Err = ""
         done := false
+        if headerRequest.Cmd == storage.IsdCmdPULLALL {
+            headerRequest.Cmd = storage.IsdCmdPULLDAT
+            if aRuntime.cfg.FullISD {
+                fullISD = true
+            }
+        }
         switch headerRequest.Cmd {
         case storage.IsdCmdREQUEST:
             if headerResponse.Sn > 0 {
@@ -56,7 +63,7 @@ func v1syncISD(conn *websocket.Conn) {
                 done = true
                 break
             }
-            step, key, err := storage.SeekDataISD(headerResponse.Step, headerResponse.Key, pDataResponse, bufferSizeNew)
+            step, key, err := storage.SeekDataISD(headerResponse.Step, headerResponse.Key, pDataResponse, bufferSizeNew, fullISD)
             if err != nil {
                 headerResponse.Err = "seek failed"
                 _applyheaderResponse()
