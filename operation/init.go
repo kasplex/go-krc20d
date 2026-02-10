@@ -236,6 +236,13 @@ fmt.Println("Lyncs TPS: ", (len(callRunList)*1000)/int(mts2-mts1+1))
             if result.Op["accept"] == "-1" && opError == "" {
                 opError = result.Op["error"]
             }
+            for k, v := range result.OpParams {
+                if v == "" {
+                    delete(opData.OpScript[iScript], k)
+                } else {
+                    opData.OpScript[iScript][k] = v
+                }
+            }
         }
         if iScriptAccept >= 0 {
             opData.Op["accept"] = "1"
