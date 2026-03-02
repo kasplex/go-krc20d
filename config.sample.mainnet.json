@@ -1,12 +1,13 @@
 {
     "startup": {
-        "mode": "node",
+        "seqMode": "kaspad",
         "hysteresis": 5,
         "seedISD": "ws://123.0.0.1:8006",
         "fullISD": false,
+        "rollbackOnInit": 0,
         "checkCommitment": false
     },
-    "node": {
+    "kaspad": {
         "grpc": [
             "127.0.0.1:16110",
             "127.0.0.1:16110"

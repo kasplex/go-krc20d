@@ -116,7 +116,6 @@ func runISD(seedISD string) (error) {
             continue
         }
         lenTotal += lenData
-        fmt.Print(".")
         wg := &sync.WaitGroup{}
         cf := -1
         for {
@@ -129,6 +128,11 @@ func runISD(seedISD string) (error) {
             if row != nil {
                 if cf == -1 {
                     cf = storage.CheckKeyPrefixCF(string(row.Key))
+                    if cf == 0 {
+                        fmt.Print(".")
+                    } else {
+                        fmt.Print(",")
+                    }
                 }
                 wg.Add(1)
                 go func(row *storage.DataKvRowType) {

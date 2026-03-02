@@ -5,6 +5,7 @@ import (
     "strings"
     "strconv"
     "github.com/gofiber/fiber/v2"
+    //"kasplex-executor/sequencer"
     "kasplex-executor/storage"
 )
 
@@ -109,8 +110,9 @@ func v1ArchiveOpList(c *fiber.Ctx) (error) {
 
 ////////////////////////////////
 func v1ArchiveVspc(c *fiber.Ctx) (error) {
-    if !aRuntime.cfg.AllowVspc {
-        return c.Status(404).SendString("api disabled")
+    return c.Status(404).SendString("api disabled")
+    /*if !sequencer.Ready() {
+        return c.Status(404).SendString("api not ready")
     }
     r := &v1responseArchiveVspc{}
     available, _, info, err := getInfoKRC20()
@@ -130,7 +132,7 @@ func v1ArchiveVspc(c *fiber.Ctx) (error) {
         r.Message = "daaScore " + v1msgNotReached
         return c.Status(403).JSON(r)
     }
-    hash, header, verbose, txIdList, txDataMap, err := storage.GetNodeArchiveVspcTxDataList(daaScore)
+    hash, header, verbose, txIdList, txDataMap, err := storage.GetNodeArchiveVspcTxDataList(daaScore)  // ??
     if err != nil {
         r.Message = v1msgInternalError
         return c.Status(403).JSON(r)
@@ -156,13 +158,14 @@ func v1ArchiveVspc(c *fiber.Ctx) (error) {
         })
     }
     r.Message = v1msgSuccessful
-    return c.JSON(r)
+    return c.JSON(r)*/
 }
 
 ////////////////////////////////
 func v1ArchiveTransaction(c *fiber.Ctx) (error) {
-    if !aRuntime.cfg.AllowVspc {
-        return c.Status(404).SendString("api disabled")
+    return c.Status(404).SendString("api disabled")
+    /*if !sequencer.Ready() {
+        return c.Status(404).SendString("api not ready")
     }
     r := &v1responseArchiveTransaction{}
     txId, _ := filterHash(c.Params("id"))
@@ -170,7 +173,7 @@ func v1ArchiveTransaction(c *fiber.Ctx) (error) {
         r.Message = "txID invalid"
         return c.Status(403).JSON(r)
     }
-    txData, err := storage.GetNodeArchiveTxData(txId)
+    txData, err := storage.GetNodeArchiveTxData(txId)  // ??
     if err != nil {
         r.Message = v1msgInternalError
         return c.Status(403).JSON(r)
@@ -184,5 +187,5 @@ func v1ArchiveTransaction(c *fiber.Ctx) (error) {
         Data: txData,
     }
     r.Message = v1msgSuccessful
-    return c.JSON(r)
+    return c.JSON(r)*/
 }

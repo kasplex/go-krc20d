@@ -2,10 +2,12 @@
 package api
 
 import (
+    "fmt"
     "time"
     "strconv"
     "github.com/gofiber/fiber/v2"
     "kasplex-executor/config"
+    "kasplex-executor/sequencer"
     "kasplex-executor/storage"
 )
 
@@ -54,6 +56,9 @@ func v1routeInfo(c *fiber.Ctx) (error) {
 
 ////////////////////////////////
 func getInfoKRC20() (bool, bool, *v1resultInfo, error) {
+    if !sequencer.Ready() {
+        return false, false, nil, fmt.Errorf("api not ready")
+    }
     info := &v1resultInfo{}
     mtsNow := time.Now().UnixMilli()
     cacheAvailable := true
@@ -83,16 +88,12 @@ func getInfoKRC20() (bool, bool, *v1resultInfo, error) {
     opTotal := uint64(0)
     cacheStateInfo.Lock()
     defer cacheStateInfo.Unlock()
-    info.available, err = storage.GetRuntimeNodeSynced()
+    info.available, daaScore, err = sequencer.GetSyncStatus()
     if err != nil {
         return false, false, nil, err
     }
     if aRuntime.cfg.AllowUnsync {
         info.available = true
-    }
-    _, _, daaScore, err = storage.GetRuntimeChainBlockLast()
-    if err != nil {
-        return false, false, nil, err
     }
     info.DaaScore = strconv.FormatUint(daaScore, 10)
     dataSynced, err = storage.GetRuntimeSynced()

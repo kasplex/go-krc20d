@@ -20,7 +20,7 @@ func v1syncISD(conn *websocket.Conn) {
     }
     fullISD := false
     for {
-        conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+        conn.SetReadDeadline(time.Now().Add(30*time.Second))
         t, dataRequest, err := conn.ReadMessage()
         if err != nil {
             break
@@ -78,7 +78,7 @@ func v1syncISD(conn *websocket.Conn) {
             }
         }
         if len(*pDataResponse) > 0 {
-            conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+            conn.SetWriteDeadline(time.Now().Add(30*time.Second))
             err = conn.WriteMessage(websocket.BinaryMessage, *pDataResponse)
             if err != nil {
                 break

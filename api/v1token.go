@@ -37,6 +37,9 @@ type v1resultToken struct {
     MintTotal string `json:"mintTotal,omitempty"`
     OpCount []string `json:"opCount,omitempty"`
     FeeTotal string `json:"feeTotal,omitempty"`
+    MaxSupply string `json:"maxSupply,omitempty"`
+    TotalSupply string `json:"totalSupply,omitempty"`
+    TotalBurned string `json:"totalBurned,omitempty"`
     Holder []v1stateTokenHolder `json:"holder,omitempty"`
 }
 
@@ -138,6 +141,32 @@ func v1routeTokenInfo(c *fiber.Ctx) (error) {
     }
     r.Result = r.Result[:0]
     v1FormatTokenInfo(tickList, stTokenMap, r)
+    stBalanceBH, err := storage.GetStateAddressBalanceData(addressBH, tick)
+    if stBalanceBH != nil && stBalanceBH["balance"] != "0" {
+        burnedBig := new(big.Int)
+        burnedBig.SetString(r.Result[0].Burned, 10)
+        tmpBig := new(big.Int)
+        tmpBig.SetString(stBalanceBH["balance"], 10)
+        burnedBig = burnedBig.Add(burnedBig, tmpBig)
+        r.Result[0].TotalBurned = burnedBig.Text(10)
+        r.Result[0].TotalSupply = "0"
+        r.Result[0].MaxSupply = "0"
+        tmpBig.SetString(r.Result[0].Minted, 10)
+        if tmpBig.Cmp(burnedBig) >= 0 {
+            r.Result[0].TotalSupply = tmpBig.Sub(tmpBig, burnedBig).Text(10)
+        }
+        tmpBig.SetString(r.Result[0].Max, 10)
+        if tmpBig.Cmp(burnedBig) >= 0 {
+            r.Result[0].MaxSupply = tmpBig.Sub(tmpBig, burnedBig).Text(10)
+        }
+    } else {
+        r.Result[0].TotalBurned = r.Result[0].Burned
+        r.Result[0].TotalSupply = r.Result[0].Minted
+        r.Result[0].MaxSupply = r.Result[0].Max
+    }
+    if r.Result[0].Max == "0" {
+        r.Result[0].MaxSupply = "unlimited"
+    }
     stats, err := storage.GetStateStatsData(tick)
     r.Result[0].TransferTotal = "0"
     r.Result[0].MintTotal = "0"

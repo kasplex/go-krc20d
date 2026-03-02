@@ -14,6 +14,7 @@ import (
     "github.com/kasplex/go-lyncs"
     "kasplex-executor/misc"
     "kasplex-executor/storage"
+    "kasplex-executor/sequencer"
 )
 
 ////////////////////////////////
@@ -349,7 +350,7 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
                 },
                 Tx: map[string]string{
                     "id": txData.TxId,
-                    "hash": txData.Data.VerboseData.Hash,
+                    //"hash": txData.Data.VerboseData.Hash,
                     "fee": "0",
                 },
                 TxInputs: txInputs,
@@ -535,7 +536,7 @@ fmt.Println("lenOpDataMap = ", len(opDataMap))
     for txId := range txIdMap {
         txDataListInput = append(txDataListInput, storage.DataTransactionType{TxId: txId})
     }
-    txDataMapInput, _, err := storage.GetNodeTransactionDataMap(txDataListInput)
+    txDataMapInput, _, err := sequencer.GetTxDataMap(txDataListInput)
     if err != nil {
         return nil, nil, 0, err
     }
@@ -558,6 +559,10 @@ fmt.Println("lenOpDataMap = ", len(opDataMap))
                 amountOut += output.Amount
             }
             for _, input := range txData.Data.Inputs {
+                if input.VerboseData != nil && input.VerboseData.UtxoEntry != nil && input.VerboseData.UtxoEntry.Amount > 0 {
+                    amountIn += input.VerboseData.UtxoEntry.Amount
+                    continue
+                }
                 if txDataMapInput[input.PreviousOutpoint.TransactionId] == nil {
                     continue
                 }

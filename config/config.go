@@ -13,15 +13,25 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 ////////////////////////////////
 type StartupConfig struct {
-    Mode string `json:"mode"`
+    SeqMode string `json:"seqMode"`
     Hysteresis int `json:"hysteresis"`
+    BlockGenesis string `json:"blockGenesis"`
+    DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
     SeedISD string `json:"seedISD"`
     FullISD bool `json:"fullISD"`
+    RollbackOnInit uint64 `json:"rollbackOnInit"`
     CheckCommitment bool `json:"checkCommitment"`
-    DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
-    TickReserved []string `json:"tickReserved"`
-    CompactOnInit bool `json:"compactOnInit"`
-    Lyncs LyncsConfig `json:"lyncs"`
+    CompactOnInit bool `json:"-"`
+    Sequencer SequencerConfig `json:"-"`
+    Lyncs LyncsConfig `json:"-"`
+}
+type SequencerConfig struct {
+    Mode string `json:"-"`
+    Kaspad KaspadConfig `json:"-"`
+    Cassandra CassaConfig `json:"-"`
+}
+type KaspadConfig struct {
+    Grpc []string `json:"grpc"`
 }
 type CassaConfig struct {
     Host string `json:"host"`
@@ -52,10 +62,10 @@ type ApiConfig struct {
     FullISD bool `json:"fullISD"`
     AllowUnsync bool `json:"allowUnsync"`
     AllowDebug bool `json:"allowDebug"`
-    AllowVspc bool `json:"-"`
 }
 type Config struct {
     Startup StartupConfig `json:"startup"`
+    Kaspad KaspadConfig `json:"kaspad"`
     Cassandra CassaConfig `json:"cassandra"`
     Rocksdb RocksConfig `json:"rocksdb"`
     Lyncs LyncsConfig `json:"lyncs"`
@@ -65,7 +75,7 @@ type Config struct {
 }
 
 ////////////////////////////////
-const Version = "3.01.260206"
+const Version = "3.01.260301"
 
 ////////////////////////////////
 func Load(cfg *Config) {
@@ -81,9 +91,11 @@ func Load(cfg *Config) {
     if err != nil {
         log.Fatalln("config.Load fatal:", err.Error())
     }
+    cfg.Startup.Sequencer = SequencerConfig{
+        Mode: cfg.Startup.SeqMode,
+        Kaspad: cfg.Kaspad,
+        Cassandra: cfg.Cassandra,
+    }
     cfg.Startup.Lyncs = cfg.Lyncs
     cfg.Startup.CompactOnInit = cfg.Rocksdb.CompactOnInit
-    if cfg.Startup.Mode != "node" {
-        cfg.Api.AllowVspc = true
-    }
 }

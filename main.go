@@ -79,7 +79,7 @@ func main() {
     }()
     
     // Init storage driver.
-    storage.Init(cfg.Cassandra, cfg.Rocksdb)
+    storage.Init(cfg.Rocksdb)
     
     // Init api server
     api.Init(c, cfg.Api, cfg.Testnet, cfg.Debug)

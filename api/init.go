@@ -50,6 +50,9 @@ const bufferSizeNew = 4194304
 const bufferSizeMax = 8388608
 
 ////////////////////////////////
+var addressBH = "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e"
+
+////////////////////////////////
 var wsConns int32
 var bufferPool = sync.Pool{
     New: func() any {
@@ -77,6 +80,9 @@ func putBuffer(p *[]byte) {
 func Init(c chan os.Signal, cfg config.ApiConfig, testnet bool, debug int) {
     aRuntime.cfg = cfg
     aRuntime.testnet = testnet
+    if aRuntime.testnet {
+        addressBH = "kaspatest:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqhqrxplya"
+    }
     slog.Info("api server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.Port)
     aRuntime.serverHTTP = fiber.New(fiber.Config{DisableStartupMessage:true})
     aRuntime.serverHTTP.Use(limiter.New(limiter.Config{ Max: aRuntime.cfg.ConnMax }))
@@ -123,7 +129,7 @@ func Init(c chan os.Signal, cfg config.ApiConfig, testnet bool, debug int) {
         c <- os.Interrupt
     }()
     InitSync(c)
-    time.Sleep(345 * time.Millisecond)
+    time.Sleep(345*time.Millisecond)
 }
 
 ////////////////////////////////
@@ -131,7 +137,7 @@ func InitSync(c chan os.Signal) {
     if aRuntime.cfg.PortISD <= 0 || aRuntime.cfg.PortISD == aRuntime.cfg.Port || aRuntime.cfg.ConnMaxISD <= 0 {
         return
     }
-    slog.Info("sync server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortISD)
+    slog.Info("isd server starting.", "host", aRuntime.cfg.Host, "port", aRuntime.cfg.PortISD)
     aRuntime.serverWS = fiber.New(fiber.Config{DisableStartupMessage:true})
     aRuntime.serverWS.Get("/", func(c *fiber.Ctx) error {
         if !websocket.IsWebSocketUpgrade(c) {
@@ -156,9 +162,9 @@ func InitSync(c chan os.Signal) {
     go func() {
         err := aRuntime.serverWS.Listen(aRuntime.cfg.Host + ":" + strconv.Itoa(aRuntime.cfg.PortISD))
         if err != nil {
-            slog.Warn("sync server down.", "error", err.Error())
+            slog.Warn("isd server down.", "error", err.Error())
         } else {
-            slog.Info("sync server down.")
+            slog.Info("isd server down.")
         }
         c <- os.Interrupt
     }()
