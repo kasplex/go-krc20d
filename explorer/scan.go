@@ -16,9 +16,9 @@ import (
     "strconv"
     //"runtime"
     "log/slog"
-    "kasplex-executor/storage"
-    "kasplex-executor/sequencer"
-    "kasplex-executor/operation"
+    "go-krc20d/storage"
+    "go-krc20d/sequencer"
+    "go-krc20d/operation"
 )
 
 ////////////////////////////////
@@ -128,6 +128,140 @@ func scan() {
         rollback.IddKeyList = nil
     }*/
     eRuntime.synced = synced
+    
+////////////////////////////
+opScoreCheck := strconv.FormatUint(rollback.OpScoreLast,10)
+for i := len(opDataList)-1; i >= 0; i-- {
+    if opDataList[i].Op["accept"] == "1" {
+        opScoreCheck = opDataList[i].Op["score"]
+        break
+    }
+}
+fmt.Println("Execution Batch - ", "daaScore: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, "checkpoint: ", rollback.CheckpointBefore, rollback.CheckpointAfter, "stCommitment: ", rollback.StCommitmentBefore, rollback.StCommitmentAfter, "opScoreLast: ", rollback.OpScoreLast, "size: ", len(rollback.StRowMapBefore), len(rollback.IddKeyList))
+fmt.Println("")
+url := "https://api-24353568745345.kasplex.org/v1/krc20/op/"+opScoreCheck
+//url := "https://tn10api.kasplex.org/v1/krc20/op/"+opScoreCheck
+fmt.Println("Checking: ", url)
+r, e := http.Get(url)
+wrong := false
+if e == nil {
+    defer r.Body.Close()
+    if r.StatusCode == http.StatusOK {
+        rr, e := io.ReadAll(r.Body)
+        if e == nil {
+            rrs := string(rr)
+            if strings.Contains(rrs, rollback.CheckpointAfter) {
+                fmt.Println("#### CheckpointAfter Identical ####")
+            } else {
+                fmt.Println("%%%% CheckpointAfter Wrong %%%%")
+                wrong = true
+            }
+        } else {
+            fmt.Printf("io.ReadAll failed: ", e.Error())
+        }
+    } else {
+        fmt.Printf("http.Get failed: ", r.StatusCode)
+    }
+} else {
+    fmt.Printf("http.Get error: ", e.Error())
+}
+fmt.Println("")
+var input string
+//fmt.Println("Press any Key to Return [0] ..")
+//fmt.Scanln(&input)
+if wrong {
+    end := len(opDataList)
+    start := 0
+    mid := end / 2
+    for {
+        if (end-start) < 100 {
+            break
+        }
+        i := mid
+        if opDataList[i].Op["accept"] != "1" {
+            mid ++
+            continue
+        }
+        url := "https://api-24353568745345.kasplex.org/v1/krc20/op/"+opDataList[i].Tx["id"]
+        //url := "https://tn10api.kasplex.org/v1/krc20/op/"+opDataList[i].Tx["id"]
+        r, e := http.Get(url)
+        if e != nil {
+            fmt.Println("error: ", e)
+            continue
+        }
+        rr, e := io.ReadAll(r.Body)
+        if e != nil {
+            fmt.Println("error: ", e)
+            r.Body.Close()
+            continue
+        }
+        rrs := string(rr)
+        if !strings.Contains(rrs, opDataList[i].Checkpoint) {
+            fmt.Print("%")
+            r.Body.Close()
+            end = mid + 1
+            mid = (end-start) / 2 + start
+            continue
+        }
+        fmt.Print("#")
+        r.Body.Close()
+        start = mid
+        mid = (end-start) / 2 + start
+        continue
+    }
+    indexWrong := -1
+    for i := start; i < end; i++ {
+        url := "https://api-24353568745345.kasplex.org/v1/krc20/op/"+opDataList[i].Tx["id"]
+        //url := "https://tn10api.kasplex.org/v1/krc20/op/"+opDataList[i].Tx["id"]
+        fmt.Print(".")
+        r, e := http.Get(url)
+        if e != nil {
+            fmt.Println("error: ", e)
+            continue
+        }
+        rr, e := io.ReadAll(r.Body)
+        if e != nil {
+            fmt.Println("error: ", e)
+            r.Body.Close()
+            continue
+        }
+        rrs := string(rr)
+        if opDataList[i].Op["accept"] == "-1" && strings.Contains(rrs, `"opAccept":"-1"`) {
+            r.Body.Close()
+            continue
+        }
+        if !strings.Contains(rrs, opDataList[i].Checkpoint) {
+            indexWrong = i
+            r.Body.Close()
+            break
+        }
+        r.Body.Close()
+    }
+    if indexWrong >= 0 {
+        start = indexWrong - 5
+        end = indexWrong + 5
+        if start < 0 {
+            start = 0
+        }
+        if end >= len(opDataList) {
+            end = len(opDataList) - 1
+        }
+        for i := start; i <= end; i++ {
+            fmt.Println("Wrong OP: ", opDataList[i])
+        }
+        countWrongOP ++
+        if countWrongOP >= 2 {
+            fmt.Println("Press any Key to Return [1] ..")
+            fmt.Scanln(&input)
+            syscall.Kill(os.Getpid(), syscall.SIGTERM)
+            time.Sleep(345*time.Millisecond)
+            return
+        }
+    }
+} else {
+    countWrongOP = 0
+}
+////////////////////////////
     
     // Fixed GC trigger.
     //runtime.GC()

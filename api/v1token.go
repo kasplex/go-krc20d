@@ -5,7 +5,7 @@ import (
     "strconv"
     "math/big"
     "github.com/gofiber/fiber/v2"
-    "kasplex-executor/storage"
+    "go-krc20d/storage"
 )
 
 ////////////////////////////////

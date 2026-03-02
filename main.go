@@ -13,10 +13,10 @@ import (
     "log/slog"
     "os/signal"
     "path/filepath"
-    "kasplex-executor/config"
-    "kasplex-executor/storage"
-    "kasplex-executor/api"
-    "kasplex-executor/explorer"
+    "go-krc20d/config"
+    "go-krc20d/storage"
+    "go-krc20d/api"
+    "go-krc20d/explorer"
 )
 
 ////////////////////////////////

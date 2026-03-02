@@ -10,10 +10,10 @@ import (
     "strconv"
     "log/slog"
     jsoniter "github.com/json-iterator/go"
-    "kasplex-executor/config"
-    "kasplex-executor/storage"
-    "kasplex-executor/sequencer"
-    "kasplex-executor/operation"
+    "go-krc20d/config"
+    "go-krc20d/storage"
+    "go-krc20d/sequencer"
+    "go-krc20d/operation"
 )
 
 ////////////////////////////////

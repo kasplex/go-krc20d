@@ -14,7 +14,7 @@ import (
     "github.com/gofiber/fiber/v2/middleware/timeout"
     "github.com/gofiber/fiber/v2/middleware/recover"
     "github.com/gofiber/websocket/v2"
-    "kasplex-executor/config"
+    "go-krc20d/config"
 )
 
 ////////////////////////////////

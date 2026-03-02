@@ -10,7 +10,7 @@ import (
     "unsafe"
     "slices"
     "strconv"
-    "kasplex-executor/misc"
+    "go-krc20d/misc"
 )
 
 ////////////////////////////////

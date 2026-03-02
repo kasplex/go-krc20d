@@ -1,10 +1,10 @@
-module kasplex-executor
+module go-krc20d
 
 go 1.26
 
 require (
 	github.com/gocql/gocql v1.7.0
-	github.com/gofiber/fiber/v2 v2.52.11
+	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/gofiber/websocket/v2 v2.2.1
 	github.com/json-iterator/go v1.1.12
 	github.com/kasplex/go-lyncs v0.0.0-20260131145858-85b769506c7f
@@ -35,9 +35,9 @@ require (
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.69.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260217215200-42d3e9bedb6d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )

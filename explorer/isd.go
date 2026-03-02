@@ -15,7 +15,7 @@ import (
     "crypto/tls"
     "nhooyr.io/websocket"
     "github.com/kasplex/go-muhash"
-    "kasplex-executor/storage"
+    "go-krc20d/storage"
 )
 
 ////////////////////////////////

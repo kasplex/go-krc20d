@@ -12,9 +12,9 @@ import (
     "strconv"
     "log/slog"
     "github.com/gocql/gocql"
-    "kasplex-executor/config"
-    "kasplex-executor/protowire"
-    "kasplex-executor/storage"
+    "go-krc20d/config"
+    "go-krc20d/protowire"
+    "go-krc20d/storage"
 )
 
 ////////////////////////////////

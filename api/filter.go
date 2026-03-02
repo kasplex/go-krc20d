@@ -8,7 +8,7 @@ import (
     "strconv"
     "encoding/hex"
     "math/big"
-    "kasplex-executor/misc"
+    "go-krc20d/misc"
 )
 
 ////////////////////////////////

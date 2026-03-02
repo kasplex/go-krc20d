@@ -12,7 +12,7 @@ import (
     "slices"
     "strings"
     "github.com/kasplex/go-muhash"
-    "kasplex-executor/config"
+    "go-krc20d/config"
 )
 
 ////////////////////////////////

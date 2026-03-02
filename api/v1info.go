@@ -6,9 +6,9 @@ import (
     "time"
     "strconv"
     "github.com/gofiber/fiber/v2"
-    "kasplex-executor/config"
-    "kasplex-executor/sequencer"
-    "kasplex-executor/storage"
+    "go-krc20d/config"
+    "go-krc20d/sequencer"
+    "go-krc20d/storage"
 )
 
 ////////////////////////////////

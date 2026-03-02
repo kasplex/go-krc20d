@@ -12,9 +12,9 @@ import (
     "log/slog"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
-    "kasplex-executor/config"
-    "kasplex-executor/protowire"
-    "kasplex-executor/storage"
+    "go-krc20d/config"
+    "go-krc20d/protowire"
+    "go-krc20d/storage"
 )
 
 ////////////////////////////////
