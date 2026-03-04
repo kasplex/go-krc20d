@@ -10,10 +10,10 @@ import (
     "strconv"
     "log/slog"
     jsoniter "github.com/json-iterator/go"
-    "go-krc20d/config"
-    "go-krc20d/storage"
-    "go-krc20d/sequencer"
-    "go-krc20d/operation"
+    "krc20d/config"
+    "krc20d/storage"
+    "krc20d/sequencer"
+    "krc20d/operation"
 )
 
 ////////////////////////////////

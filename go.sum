@@ -38,8 +38,8 @@ github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed h1:5upAirOpQc
 github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed/go.mod h1:tMWxXQ9wFIaZeTI9F+hmhFiGpFmhOHzyShyFUhRm0H4=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
-github.com/kasplex/go-lyncs v0.0.0-20260131145858-85b769506c7f h1:AZqhV1pRcrUt+cdk2Y16/vGL4o493HN6TVW3+NBX7RA=
-github.com/kasplex/go-lyncs v0.0.0-20260131145858-85b769506c7f/go.mod h1:HoIY7oNdJfAt9zPgNzGiD7o70ht4NVm0jQIFiHxW5vc=
+github.com/kasplex/go-lyncs v0.0.0-20260302082814-4950a12b4bad h1:trXMRk6aH9vCNkLVF47GJELwaEvVM8PTxCWMScypf6M=
+github.com/kasplex/go-lyncs v0.0.0-20260302082814-4950a12b4bad/go.mod h1:HoIY7oNdJfAt9zPgNzGiD7o70ht4NVm0jQIFiHxW5vc=
 github.com/kasplex/go-muhash v0.0.0-20260202064440-4aa32098617b h1:yZB0s/sYm9OeVlvMhZTPWWOlGw5Iljczw+NJEr4Zlic=
 github.com/kasplex/go-muhash v0.0.0-20260202064440-4aa32098617b/go.mod h1:d/XJ6449RN6HPGBxrRPIIJDPfz+2lQ0uVsjRg6On03o=
 github.com/klauspost/compress v1.18.4 h1:RPhnKRAQ4Fh8zU2FY/6ZFDwTVTxgJ/EMydqSTzE9a2c=

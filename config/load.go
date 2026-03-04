@@ -6,10 +6,18 @@ import (
     "os"
     "log"
     jsoniter "github.com/json-iterator/go"
+    //"github.com/jessevdk/go-flags"
 )
 
 ////////////////////////////////
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+////////////////////////////////
+type cmdConfig struct {
+    
+    // ...
+    
+}
 
 ////////////////////////////////
 type StartupConfig struct {
@@ -75,27 +83,29 @@ type Config struct {
 }
 
 ////////////////////////////////
-const Version = "3.01.260301"
+const Version = "3.01.260302"
 
 ////////////////////////////////
 func Load(cfg *Config) {
     // File "config.json" should be in the same directory.
     dir, _ := os.Getwd()
     fp, err := os.Open(dir + "/config.json")
-    if err != nil {
-        log.Fatalln("config.Load fatal:", err.Error())
+    if err == nil {
+        defer fp.Close()
+        jParser := json.NewDecoder(fp)
+        err = jParser.Decode(&cfg)
+        if err != nil {
+            log.Fatalln("config.Load fatal:", err.Error())
+        }
+        cfg.Startup.Sequencer = SequencerConfig{
+            Mode: cfg.Startup.SeqMode,
+            Kaspad: cfg.Kaspad,
+            Cassandra: cfg.Cassandra,
+        }
+        cfg.Startup.Lyncs = cfg.Lyncs
+        cfg.Startup.CompactOnInit = cfg.Rocksdb.CompactOnInit
     }
-    defer fp.Close()
-    jParser := json.NewDecoder(fp)
-    err = jParser.Decode(&cfg)
-    if err != nil {
-        log.Fatalln("config.Load fatal:", err.Error())
-    }
-    cfg.Startup.Sequencer = SequencerConfig{
-        Mode: cfg.Startup.SeqMode,
-        Kaspad: cfg.Kaspad,
-        Cassandra: cfg.Cassandra,
-    }
-    cfg.Startup.Lyncs = cfg.Lyncs
-    cfg.Startup.CompactOnInit = cfg.Rocksdb.CompactOnInit
+    
+    // use flags ...
+    
 }

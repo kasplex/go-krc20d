@@ -18,9 +18,9 @@ import (
     "github.com/kasplex/go-lyncs"
     "github.com/kasplex/go-muhash"
     jsoniter "github.com/json-iterator/go"
-    "go-krc20d/config"
-    "go-krc20d/misc"
-    "go-krc20d/storage"
+    "krc20d/config"
+    "krc20d/misc"
+    "krc20d/storage"
 )
 
 //go:embed contract/krc20.lua

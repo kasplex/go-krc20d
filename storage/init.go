@@ -9,7 +9,7 @@ import (
     "log/slog"
     "math/rand"
     jsoniter "github.com/json-iterator/go"
-    "go-krc20d/config"
+    "krc20d/config"
 )
 
 ////////////////////////////////

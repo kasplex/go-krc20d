@@ -3,7 +3,7 @@ package api
 
 import (
     "github.com/gofiber/fiber/v2"
-    "go-krc20d/storage"
+    "krc20d/storage"
 )
 
 ////////////////////////////////

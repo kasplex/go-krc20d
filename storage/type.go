@@ -7,7 +7,7 @@ import "C"
 import (
     "sync"
     "github.com/kasplex/go-muhash"
-    "go-krc20d/protowire"
+    "krc20d/protowire"
 )
 
 ////////////////////////////////

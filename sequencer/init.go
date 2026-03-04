@@ -5,9 +5,9 @@ package sequencer
 import (
     "fmt"
     jsoniter "github.com/json-iterator/go"
-    "go-krc20d/config"
-    "go-krc20d/protowire"
-    "go-krc20d/storage"
+    "krc20d/config"
+    "krc20d/protowire"
+    "krc20d/storage"
 )
 
 ////////////////////////////////

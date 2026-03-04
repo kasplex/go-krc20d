@@ -12,9 +12,9 @@ import (
     "math/big"
     "encoding/hex"
     "github.com/kasplex/go-lyncs"
-    "go-krc20d/misc"
-    "go-krc20d/storage"
-    "go-krc20d/sequencer"
+    "krc20d/misc"
+    "krc20d/storage"
+    "krc20d/sequencer"
 )
 
 ////////////////////////////////

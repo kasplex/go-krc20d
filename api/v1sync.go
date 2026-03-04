@@ -4,7 +4,7 @@ package api
 import (
     "time"
     "github.com/gofiber/websocket/v2"
-    "go-krc20d/storage"
+    "krc20d/storage"
 )
 
 ////////////////////////////////

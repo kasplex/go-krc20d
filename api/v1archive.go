@@ -5,8 +5,8 @@ import (
     "strings"
     "strconv"
     "github.com/gofiber/fiber/v2"
-    //"go-krc20d/sequencer"
-    "go-krc20d/storage"
+    //"krc20d/sequencer"
+    "krc20d/storage"
 )
 
 ////////////////////////////////

@@ -12,9 +12,9 @@ import (
     "log/slog"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials/insecure"
-    "go-krc20d/config"
-    "go-krc20d/protowire"
-    "go-krc20d/storage"
+    "krc20d/config"
+    "krc20d/protowire"
+    "krc20d/storage"
 )
 
 ////////////////////////////////
@@ -149,10 +149,10 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
                 return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("tx duplicated")
             }
             txData := &protowire.RpcTransaction{
-                //Version: *txAccepted.Version,
-                //LockTime: *txAccepted.LockTime,
-                //SubnetworkId: *txAccepted.SubnetworkId,
-                //Gas: *txAccepted.Gas,
+                Version: *txAccepted.Version,  // FULL
+                LockTime: *txAccepted.LockTime,  // FULL
+                SubnetworkId: *txAccepted.SubnetworkId,  // FULL
+                Gas: *txAccepted.Gas,  // FULL
                 Payload: *txAccepted.Payload,
                 Mass: *txAccepted.Mass,
                 VerboseData: &protowire.RpcTransactionVerboseData{
@@ -180,7 +180,7 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
                                 Version: txAccepted.Inputs[k].VerboseData.UtxoEntry.ScriptPublicKey.Version,
                                 ScriptPublicKey: txAccepted.Inputs[k].VerboseData.UtxoEntry.ScriptPublicKey.ScriptPublicKey,
                             },
-                            //BlockDaaScore: *txAccepted.Inputs[k].VerboseData.UtxoEntry.BlockDaaScore,
+                            BlockDaaScore: *txAccepted.Inputs[k].VerboseData.UtxoEntry.BlockDaaScore,  // FULL
                             IsCoinbase: *txAccepted.Inputs[k].VerboseData.UtxoEntry.IsCoinbase,
                             VerboseData: &protowire.RpcUtxoEntryVerboseData{
                                 ScriptPublicKeyType: *txAccepted.Inputs[k].VerboseData.UtxoEntry.VerboseData.ScriptPublicKeyType,
@@ -222,7 +222,7 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
         return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("nil vspc")
     }
     kaspadExpireCacheBlockDaaScore(vspcListNext[0].DaaScore)
-    slog.Info("sequencer.kaspadGetVirtualChainFromBlockV2", "daaScoreAvailable", daaScoreAvailable, "daaScoreStart", daaScoreStart, "lenBlock/lenTransaction/mSecond", strconv.Itoa(lenVspcNext)+"/"+strconv.Itoa(len(txDataList))+"/"+strconv.Itoa(int(mtsBatchVspc)))
+    slog.Info("sequencer.kaspadGetVirtualChainFromBlockV2", "daaScoreAvailable", daaScoreAvailable, "daaScoreStart", daaScoreStart, "daaScoreCache", strconv.Itoa(len(kaspadCacheDaaScore.Index))+"/"+strconv.Itoa(len(kaspadCacheDaaScore.DaaScore)), "lenBlock/lenTransaction/mSecond", strconv.Itoa(lenVspcNext)+"/"+strconv.Itoa(len(txDataList))+"/"+strconv.Itoa(int(mtsBatchVspc)))
     // Determine the sync status.
     synced = false
     if daaScoreAvailable - vspcListNext[lenVspcNext-1].DaaScore < uint64(300+hysteresis) {
@@ -257,6 +257,7 @@ func kaspadGetBlockDaaScore(hash string) (uint64, error) {
         return 0, err
     }
     daaScore = r.Block.Header.DaaScore
+    slog.Info("sequencer.kaspadGetBlockDaaScore", "hash", hash, "daaScore", daaScore)
     if daaScore == 0 {
         return 0, fmt.Errorf("nil block")
     }
@@ -416,7 +417,7 @@ func kaspadGetBlock(hash string) (*protowire.GetBlockResponseMessage, error) {
 
 ////////////////////////////////
 func kaspadGetVirtualChainFromBlockV2(startHash string) (*protowire.GetVirtualChainFromBlockV2ResponseMessage, error) {
-    level := protowire.RpcDataVerbosityLevel_HIGH
+    level := protowire.RpcDataVerbosityLevel_FULL
     count := uint64(hysteresis)
     r, err := kaspadRequest(&protowire.KaspadRequest{Id:0, Payload:&protowire.KaspadRequest_GetVirtualChainFromBlockV2Request{GetVirtualChainFromBlockV2Request:&protowire.GetVirtualChainFromBlockV2RequestMessage{
         StartHash: startHash,

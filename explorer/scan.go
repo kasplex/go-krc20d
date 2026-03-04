@@ -16,9 +16,9 @@ import (
     "strconv"
     //"runtime"
     "log/slog"
-    "go-krc20d/storage"
-    "go-krc20d/sequencer"
-    "go-krc20d/operation"
+    "krc20d/storage"
+    "krc20d/sequencer"
+    "krc20d/operation"
 )
 
 ////////////////////////////////

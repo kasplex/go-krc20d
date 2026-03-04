@@ -13,10 +13,10 @@ import (
     "log/slog"
     "os/signal"
     "path/filepath"
-    "go-krc20d/config"
-    "go-krc20d/storage"
-    "go-krc20d/api"
-    "go-krc20d/explorer"
+    "krc20d/config"
+    "krc20d/storage"
+    "krc20d/api"
+    "krc20d/explorer"
 )
 
 ////////////////////////////////

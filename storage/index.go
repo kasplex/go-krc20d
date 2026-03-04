@@ -10,7 +10,7 @@ import (
     "unsafe"
     "slices"
     "strconv"
-    "go-krc20d/misc"
+    "krc20d/misc"
 )
 
 ////////////////////////////////

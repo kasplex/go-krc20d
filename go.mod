@@ -1,4 +1,4 @@
-module go-krc20d
+module krc20d
 
 go 1.26
 
@@ -7,7 +7,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/gofiber/websocket/v2 v2.2.1
 	github.com/json-iterator/go v1.1.12
-	github.com/kasplex/go-lyncs v0.0.0-20260131145858-85b769506c7f
+	github.com/kasplex/go-lyncs v0.0.0-20260302082814-4950a12b4bad
 	github.com/kasplex/go-muhash v0.0.0-20260202064440-4aa32098617b
 	golang.org/x/crypto v0.48.0
 	golang.org/x/sync v0.19.0

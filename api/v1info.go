@@ -6,9 +6,9 @@ import (
     "time"
     "strconv"
     "github.com/gofiber/fiber/v2"
-    "go-krc20d/config"
-    "go-krc20d/sequencer"
-    "go-krc20d/storage"
+    "krc20d/config"
+    "krc20d/sequencer"
+    "krc20d/storage"
 )
 
 ////////////////////////////////
