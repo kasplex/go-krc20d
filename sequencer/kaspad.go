@@ -87,14 +87,9 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
     mtsBatchVspc := time.Now().UnixMilli()
     vspcData, err := kaspadGetVirtualChainFromBlockV2(hashStart)
     if err != nil {
-        slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 failed, sleep 3s.", "error", err.Error())
-        time.Sleep(2700*time.Millisecond)
+        slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 failed, sleep 1.35s.", "error", err.Error())
+        time.Sleep(1050*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, err
-    }
-    if vspcData == nil {
-        slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 nil, sleep 0.75s.")
-        time.Sleep(450*time.Millisecond)
-        return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("nil vspc")
     }
     // Check if a rollback is needed.
     lenRemoved := len(vspcData.RemovedChainBlockHashes)
@@ -400,7 +395,11 @@ func kaspadGetInfo() (*protowire.GetInfoResponseMessage, error) {
     if err != nil {
         return nil, err
     }
-    return r.GetGetInfoResponse(), nil
+    response := r.GetGetInfoResponse()
+    if response == nil {
+        return nil, fmt.Errorf("nil info")
+    }
+    return response, nil
 }
 
 ////////////////////////////////
@@ -409,7 +408,11 @@ func kaspadGetServerInfo() (*protowire.GetServerInfoResponseMessage, error) {
     if err != nil {
         return nil, err
     }
-    return r.GetGetServerInfoResponse(), nil
+    response := r.GetGetServerInfoResponse()
+    if response == nil {
+        return nil, fmt.Errorf("nil serverInfo")
+    }
+    return response, nil
 }
 
 ////////////////////////////////
@@ -418,7 +421,11 @@ func kaspadGetBlockDagInfo() (*protowire.GetBlockDagInfoResponseMessage, error) 
     if err != nil {
         return nil, err
     }
-    return r.GetGetBlockDagInfoResponse(), nil
+    response := r.GetGetBlockDagInfoResponse()
+    if response == nil {
+        return nil, fmt.Errorf("nil dagInfo")
+    }
+    return response, nil
 }
 
 ////////////////////////////////
@@ -430,7 +437,11 @@ func kaspadGetBlock(hash string) (*protowire.GetBlockResponseMessage, error) {
     if err != nil {
         return nil, err
     }
-    return r.GetGetBlockResponse(), nil
+    response := r.GetGetBlockResponse()
+    if response == nil {
+        return nil, fmt.Errorf("nil block")
+    }
+    return response, nil
 }
 
 ////////////////////////////////
@@ -445,5 +456,9 @@ func kaspadGetVirtualChainFromBlockV2(startHash string) (*protowire.GetVirtualCh
     if err != nil {
         return nil, err
     }
-    return r.GetGetVirtualChainFromBlockV2Response(), nil
+    response := r.GetGetVirtualChainFromBlockV2Response()
+    if response == nil {
+        return nil, fmt.Errorf("nil vspc")
+    }
+    return response, nil
 }
