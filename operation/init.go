@@ -193,7 +193,7 @@ fmt.Println("error: ", err.Error())
                 if !exists {
                     continue
                 }
-                stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, keyList[j], c.Session.State[keyList[j]], s)
+                stLineBefore, stLineAfter = makeStLine(stLineBefore, stLineAfter, keyList[j], c.Session.State[keyList[j]], s, c.Session.OpParams["op"])
                 stRowBefore, stRowAfter = makeStRow(stRowBefore, stRowAfter, keyList[j], c.Session.State[keyList[j]], s)
             }
             index, _ := strconv.Atoi(c.Session.Op["index"])
@@ -492,13 +492,18 @@ func makeStRow(stRowBefore []*storage.DataKvRowType, stRowAfter []*storage.DataK
 }
 
 ////////////////////////////////
-func makeStLine(stLineBefore []string, stLineAfter []string, key string, stBefore map[string]string, stAfter map[string]string) ([]string, []string) {
+func makeStLine(stLineBefore []string, stLineAfter []string, key string, stBefore map[string]string, stAfter map[string]string, op string) ([]string, []string) {
     stType := strings.SplitN(key, "_", 2)[0]
     var before string
     var after string
     if stType == storage.KeyPrefixStateToken {
-        before = makeStLineToken(key, stBefore, stBefore==nil)
-        after = makeStLineToken(key, stAfter, stBefore==nil)
+        if op == "chown" {  // fucking for compatibility
+            before = makeStLineToken(key, stBefore, true)
+            after = makeStLineToken(key, stAfter, true)
+        } else {
+            before = makeStLineToken(key, stBefore, stBefore==nil)
+            after = makeStLineToken(key, stAfter, stBefore==nil)
+        }
     } else if stType == storage.KeyPrefixStateBalance {
         before = makeStLineBalance(key, stBefore)
         after = makeStLineBalance(key, stAfter)
