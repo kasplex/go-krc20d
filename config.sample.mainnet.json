@@ -1,7 +1,8 @@
 {
     "startup": {
         "seqMode": "kaspad",
-        "hysteresis": 5,
+        "hysteresis": 3,
+        "loopDelay": 550,
         "seedISD": "ws://123.0.0.1:8006",
         "fullISD": false,
         "rollbackOnInit": 0,

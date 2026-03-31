@@ -5,7 +5,7 @@ import (
     "strings"
     "strconv"
     "github.com/gofiber/fiber/v2"
-    //"krc20d/sequencer"
+    "krc20d/sequencer"
     "krc20d/storage"
 )
 
@@ -29,7 +29,6 @@ type v1resultArchiveBlock struct {
     Hash string `json:"hash"`
     DaaScore uint64 `json:"daascore"`
     Header string `json:"header"`
-    Verbose string `json:"verbose"`
 }
 
 type v1resultArchiveTransaction struct {
@@ -110,8 +109,7 @@ func v1ArchiveOpList(c *fiber.Ctx) (error) {
 
 ////////////////////////////////
 func v1ArchiveVspc(c *fiber.Ctx) (error) {
-    return c.Status(404).SendString("api disabled")
-    /*if !sequencer.Ready() {
+    if !sequencer.Ready() {
         return c.Status(404).SendString("api not ready")
     }
     r := &v1responseArchiveVspc{}
@@ -132,8 +130,11 @@ func v1ArchiveVspc(c *fiber.Ctx) (error) {
         r.Message = "daaScore " + v1msgNotReached
         return c.Status(403).JSON(r)
     }
-    hash, header, verbose, txIdList, txDataMap, err := storage.GetNodeArchiveVspcTxDataList(daaScore)  // ??
+    hash, header, txIdList, txDataMap, err := sequencer.GetArchiveVspcTxDataList(daaScore)
     if err != nil {
+        if err.Error() == "disabled" {
+            return c.Status(404).SendString("api disabled")
+        }
         r.Message = v1msgInternalError
         return c.Status(403).JSON(r)
     }
@@ -147,7 +148,6 @@ func v1ArchiveVspc(c *fiber.Ctx) (error) {
             Hash: hash,
             DaaScore: intDaascore,
             Header: header,
-            Verbose: verbose,
         },
         TxList: make([]*v1resultArchiveTransaction, 0, len(txIdList)),
     })
@@ -158,13 +158,12 @@ func v1ArchiveVspc(c *fiber.Ctx) (error) {
         })
     }
     r.Message = v1msgSuccessful
-    return c.JSON(r)*/
+    return c.JSON(r)
 }
 
 ////////////////////////////////
 func v1ArchiveTransaction(c *fiber.Ctx) (error) {
-    return c.Status(404).SendString("api disabled")
-    /*if !sequencer.Ready() {
+    if !sequencer.Ready() {
         return c.Status(404).SendString("api not ready")
     }
     r := &v1responseArchiveTransaction{}
@@ -173,8 +172,11 @@ func v1ArchiveTransaction(c *fiber.Ctx) (error) {
         r.Message = "txID invalid"
         return c.Status(403).JSON(r)
     }
-    txData, err := storage.GetNodeArchiveTxData(txId)  // ??
+    txData, err := sequencer.GetArchiveTxData(txId)
     if err != nil {
+        if err.Error() == "disabled" {
+            return c.Status(404).SendString("api disabled")
+        }
         r.Message = v1msgInternalError
         return c.Status(403).JSON(r)
     }
@@ -187,5 +189,5 @@ func v1ArchiveTransaction(c *fiber.Ctx) (error) {
         Data: txData,
     }
     r.Message = v1msgSuccessful
-    return c.JSON(r)*/
+    return c.JSON(r)
 }

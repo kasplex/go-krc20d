@@ -22,6 +22,9 @@ var daaScoreRange [][2]uint64
 var GetSyncStatus func() (bool, uint64, error)
 var GetVspcTxDataList func([]storage.DataVspcType) (bool, uint64, uint64, []storage.DataVspcType, []storage.DataTransactionType, error)
 var GetTxDataMap func([]storage.DataTransactionType) (map[string]*protowire.RpcTransaction, int64, error)
+var GetArchiveVspcTxDataList func(string) (string, string, []string, map[string]string, error)
+var GetArchiveTxData func(string) (string, error)
+
 
 ////////////////////////////////
 func Init(cfg config.SequencerConfig, cfgHysteresis int, cfgDaaScoreRange [][2]uint64) (error) {

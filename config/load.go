@@ -23,6 +23,7 @@ type cmdConfig struct {
 type StartupConfig struct {
     SeqMode string `json:"seqMode"`
     Hysteresis int `json:"hysteresis"`
+    LoopDelay int `json:"loopDelay"`
     BlockGenesis string `json:"blockGenesis"`
     DaaScoreRange [][2]uint64 `json:"daaScoreRange"`
     SeedISD string `json:"seedISD"`
@@ -83,7 +84,10 @@ type Config struct {
 }
 
 ////////////////////////////////
-const Version = "3.01.260302"
+const Version = "3.01.260330"
+
+////////////////////////////////
+const HfDaaScore2026Q1 = 403756000
 
 ////////////////////////////////
 func Load(cfg *Config) {

@@ -60,6 +60,11 @@ func Init(ctx context.Context, wg *sync.WaitGroup, cfg config.StartupConfig, tes
     } else if eRuntime.cfg.Hysteresis > 1000 {
         eRuntime.cfg.Hysteresis = 1000
     }
+    if eRuntime.cfg.LoopDelay < 50 {
+        eRuntime.cfg.LoopDelay = 50
+    } else if eRuntime.cfg.LoopDelay > 2950 {
+        eRuntime.cfg.LoopDelay = 2950
+    }
     if (!testnet || eRuntime.cfg.BlockGenesis == "") {
         eRuntime.cfg.BlockGenesis = blockGenesis
     }
@@ -176,7 +181,7 @@ loop:
             default:
                 scan()
                 // Basic loop delay.
-                time.Sleep(100*time.Millisecond)
+                time.Sleep(50*time.Millisecond)
         }
     }
 }

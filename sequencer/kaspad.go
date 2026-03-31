@@ -65,6 +65,8 @@ func kaspadInit(cfg config.KaspadConfig) (error) {
     GetSyncStatus = kaspadGetSyncStatus
     GetVspcTxDataList = kaspadGetVspcTxDataList
     GetTxDataMap = kaspadGetTxDataMap
+    GetArchiveVspcTxDataList = kaspadGetNodeArchiveVspcTxDataList
+    GetArchiveTxData = kaspadGetNodeArchiveTxData
     return nil
 }
 
@@ -78,7 +80,7 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
     synced, daaScoreAvailable, err := kaspadGetSyncStatus()
     if err != nil || !synced {
         slog.Warn("sequencer.kaspadGetSyncStatus failed/unsynced, sleep 3s.", "synced", synced, "error", err)
-        time.Sleep(2000*time.Millisecond)
+        time.Sleep(2700*time.Millisecond)
         return false, 0, 0, nil, nil, err
     }
     // Get the next vspc/tx data list.
@@ -86,8 +88,13 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
     vspcData, err := kaspadGetVirtualChainFromBlockV2(hashStart)
     if err != nil {
         slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 failed, sleep 3s.", "error", err.Error())
-        time.Sleep(2000*time.Millisecond)
+        time.Sleep(2700*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, err
+    }
+    if vspcData == nil {
+        slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 nil, sleep 0.75s.")
+        time.Sleep(450*time.Millisecond)
+        return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("nil vspc")
     }
     // Check if a rollback is needed.
     lenRemoved := len(vspcData.RemovedChainBlockHashes)
@@ -96,8 +103,8 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
         for _, hashRemoved := range vspcData.RemovedChainBlockHashes {
             daaScoreRemoved, err := kaspadGetBlockDaaScore(hashRemoved)
             if err != nil {
-                slog.Debug("sequencer.kaspadGetBlockDaaScore failed, sleep 1.75s.", "hashRemoved", hashRemoved)
-                time.Sleep(750*time.Millisecond)
+                slog.Debug("sequencer.kaspadGetBlockDaaScore failed, sleep 0.75s.", "hashRemoved", hashRemoved)
+                time.Sleep(450*time.Millisecond)
                 return false, daaScoreAvailable, 0, nil, nil, err
             }
             if daaScoreRollback == 0 || daaScoreRemoved < daaScoreRollback {
@@ -111,8 +118,8 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
     // Convert the vspc/tx data list.
     lenAdded := len(vspcData.AddedChainBlockHashes)
     if lenAdded == 0 || lenAdded != len(vspcData.ChainBlockAcceptedTransactions) {
-        slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 empty/mismatch, sleep 1.75s.")
-        time.Sleep(750*time.Millisecond)
+        slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 empty/mismatch, sleep 0.75s.")
+        time.Sleep(450*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("empty/mismatch vspc")
     }
     vspcListNext := make([]storage.DataVspcType, 0, lenAdded)
@@ -122,7 +129,7 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
         daaScore := *vspcData.ChainBlockAcceptedTransactions[i].ChainBlockHeader.DaaScore
         if daaScore == 0 {
             slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 zero daaScore, sleep 3s.")
-            time.Sleep(2000*time.Millisecond)
+            time.Sleep(2700*time.Millisecond)
             return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("zero daaScore")
         }
         if daaScore <= daaScoreStart {
@@ -144,8 +151,8 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
         for j := range vspcData.ChainBlockAcceptedTransactions[i].AcceptedTransactions {
             txAccepted := vspcData.ChainBlockAcceptedTransactions[i].AcceptedTransactions[j]
             if txIdMap[*txAccepted.VerboseData.TransactionId] {
-                slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 duplicated, sleep 1.75s.", "daaScore", daaScore, "txId", *txAccepted.VerboseData.TransactionId)
-                time.Sleep(750*time.Millisecond)
+                slog.Warn("sequencer.kaspadGetVirtualChainFromBlockV2 duplicated, sleep 0.75s.", "daaScore", daaScore, "txId", *txAccepted.VerboseData.TransactionId)
+                time.Sleep(450*time.Millisecond)
                 return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("tx duplicated")
             }
             txData := &protowire.RpcTransaction{
@@ -217,8 +224,8 @@ func kaspadGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, uin
     mtsBatchVspc = time.Now().UnixMilli() - mtsBatchVspc
     lenVspcNext := len(vspcListNext)
     if lenVspcNext == 0 {
-        slog.Debug("sequencer.kaspadGetVspcTxDataList empty, sleep 1.75s.", "daaScore", daaScoreStart)
-        time.Sleep(750*time.Millisecond)
+        slog.Debug("sequencer.kaspadGetVspcTxDataList empty, sleep 0.75s.", "daaScore", daaScoreStart)
+        time.Sleep(450*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("nil vspc")
     }
     kaspadExpireCacheBlockDaaScore(vspcListNext[0].DaaScore)
@@ -295,6 +302,17 @@ func kaspadExpireCacheBlockDaaScore(daaScore uint64) {
     if s > 0 {
         kaspadCacheDaaScore.Index = kaspadCacheDaaScore.Index[s:]
     }
+}
+
+////////////////////////////////
+func kaspadGetNodeArchiveVspcTxDataList(daaScore string) (string, string, []string, map[string]string, error) {
+    return "", "", nil, nil, fmt.Errorf("disabled")
+}
+
+
+////////////////////////////////
+func kaspadGetNodeArchiveTxData(txId string) (string, error) {
+    return "", fmt.Errorf("disabled")
 }
 
 ////////////////////////////////

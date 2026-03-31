@@ -42,6 +42,9 @@ var archiveCqlnGetRuntime = "SELECT * FROM runtime WHERE key=?;"
 var archiveCqlnGetVspcData = "SELECT daascore,hash,txid FROM vspc WHERE daascore IN ({daascoreIn});"
 var archiveCqlnGetTransactionData = "SELECT txid,data FROM transaction WHERE txid IN ({txidIn});"
 var archiveCqlnGetBlockHeader = "SELECT hash,header FROM block WHERE hash IN ({hashIn});"
+var archiveCqlnGetVspcByDaaScore = "SELECT hash,txid FROM vspc WHERE daascore=?;"
+var archiveCqlnGetBlockByHash = "SELECT header FROM block WHERE hash=?;"
+var archiveCqlnGetTransactionByTxid = "SELECT data FROM transaction WHERE txid=?;"
 
 ////////////////////////////////
 var archiveLenVspcListMaxAdj = archiveLenVspcListMax
@@ -53,7 +56,8 @@ func archiveInit(cfg config.CassaConfig) (error) {
         return fmt.Errorf("config invalid")
     }
     archiveRuntime.cfg = cfg
-    archiveRuntime.cassa = gocql.NewCluster(archiveRuntime.cfg.Host)
+    hostList := strings.Split(archiveRuntime.cfg.Host, ",")
+    archiveRuntime.cassa = gocql.NewCluster(hostList...)
     archiveRuntime.cassa.Port = archiveRuntime.cfg.Port
     archiveRuntime.cassa.Authenticator = gocql.PasswordAuthenticator{
         Username: archiveRuntime.cfg.User,
@@ -85,6 +89,8 @@ func archiveInit(cfg config.CassaConfig) (error) {
     GetSyncStatus = archiveGetRuntimeSynced
     GetVspcTxDataList = archiveGetVspcTxDataList
     GetTxDataMap = archiveGetNodeTransactionDataMap
+    GetArchiveVspcTxDataList = archiveGetNodeArchiveVspcTxDataList
+    GetArchiveTxData = archiveGetNodeArchiveTxData
     return nil
 }
 
@@ -107,12 +113,12 @@ func archiveGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, ui
     _, _, daaScoreAvailable, err := archiveGetRuntimeChainBlockLast()
     if err != nil {
         slog.Warn("sequencer.archiveGetRuntimeChainBlockLast failed, sleep 3s.", "error", err.Error())
-        time.Sleep(2000*time.Millisecond)
+        time.Sleep(2700*time.Millisecond)
         return false, 0, 0, nil, nil, err
     }
     if daaScoreAvailable <= daaScoreStart + uint64(hysteresis + archiveLenVspcCheck + 5) {
-        slog.Info("sequencer.archiveGetRuntimeChainBlockLast not reached, sleep 1.75s.", "daaScoreAvailable", daaScoreAvailable)
-        time.Sleep(750*time.Millisecond)
+        slog.Info("sequencer.archiveGetRuntimeChainBlockLast not reached, sleep 0.55s.", "daaScoreAvailable", daaScoreAvailable)
+        time.Sleep(250*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("vspc not reached")
     }
     // Calculate the maximum available vspc length.
@@ -124,13 +130,17 @@ func archiveGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, ui
     vspcListNext, mtsBatchVspc, err := archiveGetNodeVspcList(daaScoreStart, archiveLenVspcListMaxAdj+5)
     if err != nil {
         slog.Warn("sequencer.archiveGetNodeVspcList failed, sleep 3s.", "daaScore", daaScoreStart, "error", err.Error())
-        time.Sleep(2000*time.Millisecond)
+        time.Sleep(2700*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, err
     }
     lenVspcNext := len(vspcListNext)
     if lenVspcNext == 0 {
-        slog.Debug("sequencer.archiveGetNodeVspcList empty, sleep 1.75s.", "daaScore", daaScoreStart)
-        time.Sleep(750*time.Millisecond)
+        archiveLenVspcListMaxAdj += 100
+        if archiveLenVspcListMaxAdj > archiveLenVspcListMax*3 {
+            archiveLenVspcListMaxAdj = archiveLenVspcListMax*3
+        }
+        slog.Debug("sequencer.archiveGetNodeVspcList empty, sleep 0.55s.", "daaScore", daaScoreStart)
+        time.Sleep(250*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("nil vspc")
     }
     slog.Info("sequencer.archiveGetNodeVspcList", "daaScoreAvailable", daaScoreAvailable, "daaScoreStart", daaScoreStart, "lenBlock/mSecond", strconv.Itoa(lenVspcNext)+"/"+strconv.Itoa(int(mtsBatchVspc)), "lenVspcListMax", archiveLenVspcListMaxAdj)
@@ -143,8 +153,8 @@ func archiveGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, ui
         if archiveLenVspcListMaxAdj > archiveLenVspcListMax*3 {
             archiveLenVspcListMaxAdj = archiveLenVspcListMax*3
         }
-        slog.Debug("sequencer.archiveCheckRollback empty, sleep 1.75s.", "daaScore", daaScoreStart, "lenVspcListMax", archiveLenVspcListMaxAdj)
-        time.Sleep(750*time.Millisecond)
+        slog.Debug("sequencer.archiveCheckRollback empty, sleep 0.55s.", "daaScore", daaScoreStart, "lenVspcListMax", archiveLenVspcListMaxAdj)
+        time.Sleep(250*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("nil vspc")
     }
     archiveLenVspcListMaxAdj = archiveLenVspcListMax
@@ -163,8 +173,8 @@ func archiveGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, ui
         }
         for _, txId := range vspcListNext[i].TxIdList {
             if txIdMap[txId] {
-                slog.Warn("sequencer.archiveGetNodeVspcList duplicated, sleep 1.75s.", "daaScore", vspcListNext[i].DaaScore, "txId", txId)
-                time.Sleep(750*time.Millisecond)
+                slog.Warn("sequencer.archiveGetNodeVspcList duplicated, sleep 0.55s.", "daaScore", vspcListNext[i].DaaScore, "txId", txId)
+                time.Sleep(250*time.Millisecond)
                 return false, daaScoreAvailable, 0, nil, nil, fmt.Errorf("tx duplicated")
             }
             txDataList = append(txDataList, storage.DataTransactionType{
@@ -181,7 +191,7 @@ func archiveGetVspcTxDataList(vspcList []storage.DataVspcType) (bool, uint64, ui
     txDataList, mtsBatchTx, err := archiveGetNodeTransactionDataList(txDataList)
     if err != nil {
         slog.Warn("sequencer.archiveGetNodeTransactionDataList failed, sleep 3s.", "lenTransaction", lenTxData, "error", err.Error())
-        time.Sleep(2000*time.Millisecond)
+        time.Sleep(2700*time.Millisecond)
         return false, daaScoreAvailable, 0, nil, nil, err
     }
     slog.Info("sequencer.archiveGetNodeTransactionDataList", "lenTransaction/mSecond", strconv.Itoa(lenTxData)+"/"+strconv.Itoa(int(mtsBatchTx)))
@@ -418,6 +428,78 @@ func archiveGetNodeTransactionDataList(txDataList []storage.DataTransactionType)
         txDataList[i].Data = txDataMap[txData.TxId]
     }
     return txDataList, mtsBatch, nil
+}
+
+////////////////////////////////
+func archiveGetNodeArchiveVspcTxDataList(daaScore string) (string, string, []string, map[string]string, error) {
+    rowVspc := archiveRuntime.sessionCassa.Query(archiveCqlnGetVspcByDaaScore, daaScore)
+    defer rowVspc.Release()
+    var hash, txId string
+    err := rowVspc.Scan(&hash, &txId)
+    if err != nil {
+        if err.Error() == "not found" {
+            return "", "", nil, nil, nil
+        }
+        return "", "", nil, nil, err
+    }
+    rowBlock := archiveRuntime.sessionCassa.Query(archiveCqlnGetBlockByHash, hash)
+    defer rowBlock.Release()
+    var header string
+    err = rowBlock.Scan(&header)
+    if err != nil {
+        return "", "", nil, nil, err
+    }
+    var txIdList []string
+    if txId != "" {
+        txIdList = strings.Split(txId, ",")
+    } else {
+        return hash, header, nil, nil, nil
+    }
+    intDaascore, _ := strconv.ParseUint(daaScore, 10, 64)
+    if intDaascore < 110165000 {
+        sort.Strings(txIdList)
+    }
+    lenTxId := len(txIdList)
+    txDataMap := make(map[string]string, lenTxId)
+    mutex := new(sync.RWMutex)
+    _, err = archiveStartQueryBatchIn(lenTxId, func(iStart int, iEnd int, session *gocql.Session) (error) {
+        txIdListIn := make([]string, 0, iEnd-iStart)
+        for i := iStart; i < iEnd; i ++ {
+            txIdListIn = append(txIdListIn, "'"+txIdList[i]+"'")
+        }
+        cql := strings.Replace(archiveCqlnGetTransactionData, "{txidIn}", strings.Join(txIdListIn,","), 1)
+        row := session.Query(cql).Iter().Scanner()
+        for row.Next() {
+            var txId, data string
+            err := row.Scan(&txId, &data)
+            if err != nil {
+                return err
+            }
+            mutex.Lock()
+            txDataMap[txId] = data
+            mutex.Unlock()
+        }
+        return row.Err()
+    })
+    if err != nil {
+        return "", "", nil, nil, err
+    }
+    return hash, header, txIdList, txDataMap, nil
+}
+
+////////////////////////////////
+func archiveGetNodeArchiveTxData(txId string) (string, error) {
+    row := archiveRuntime.sessionCassa.Query(archiveCqlnGetTransactionByTxid, txId)
+    defer row.Release()
+    var data string
+    err := row.Scan(&data)
+    if err != nil {
+        if err.Error() == "not found" {
+            return "", nil
+        }
+        return "", err
+    }
+    return data, nil
 }
 
 ////////////////////////////////

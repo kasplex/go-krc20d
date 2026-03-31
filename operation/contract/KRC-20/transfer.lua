@@ -20,11 +20,19 @@ function init()
 	if sp.ca~=nil then
 		tick = sp.ca
 	end
+	local opp = {tick=tick}
+	
+	if ds:cmp(403756000)>0 then
+		local memo = ""
+		if sp.memo~=nil then
+			memo = string.sub(sp.memo, 1, 256)
+		end
+		opr.memo = "ascii,o"
+		opp.memo = memo
+	end
 
 	return krc20.succ({
-		opParams = {
-			tick = tick,
-		},
+		opParams = opp,
 		opRules = opr,
 		keyRules = {
 			[krc20.keyToken(tick)] = "r",

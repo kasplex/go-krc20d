@@ -3,7 +3,9 @@
 package explorer
 
 import (
+
     "fmt"
+    
     "time"
     "sync"
     "strconv"
@@ -12,126 +14,124 @@ import (
     "math/big"
     "encoding/hex"
     "github.com/kasplex/go-lyncs"
+    "krc20d/config"
     "krc20d/misc"
     "krc20d/storage"
     "krc20d/sequencer"
+    "krc20d/protowire"
 )
 
 ////////////////////////////////
 var scriptKeyForcedCompatibleList = map[string]bool{"from":true,"to":true,"tick":true,"max":true,"lim":true,"pre":true,"dec":true,"amt":true,"utxo":true,"price":true,"mod":true,"name":true,"ca":true}
 
 ////////////////////////////////
-// Parse the P2SH transaction input script.
-func parseScriptInput(script string) (bool, []string) {
+func _lGetScript(s string, i int) (int64, int, bool) {
+    iRaw := i
+    lenS := len(s)
+    if lenS < (i + 2) {
+        return 0, iRaw, false
+    }
+    f := s[i:i+2]
+    i += 2
+    lenD := int64(0)
+    if f == "4c" {
+        if lenS < (i + 2) {
+            return 0, iRaw, false
+        }
+        f := s[i:i+2]
+        i += 2
+        lenD, _ = strconv.ParseInt(f, 16, 32)
+    } else if f == "4d" {
+        if lenS < (i + 4) {
+            return 0, iRaw, false
+        }
+        f := s[i+2:i+4] + s[i:i+2]
+        i += 4
+        lenD, _ = strconv.ParseInt(f, 16, 32)
+    } else {
+        lenD, _ = strconv.ParseInt(f, 16, 32)
+        if (lenD <0 || lenD > 75) {
+            return 0, iRaw, false
+        }
+    }
+    lenD *= 2
+    return lenD, i, true
+}
+
+////////////////////////////////
+func _nGetScript(s string, i int) (int64, int, bool) {
+    iRaw := i
+    lenS := len(s)
+    if lenS < (i + 2) {
+        return 0, iRaw, false
+    }
+    f := s[i:i+2]
+    i += 2
+    num, _ := strconv.ParseInt(f, 16, 32)
+    if (num < 81 || num > 96) {
+        return 0, iRaw, false
+    }
+    num -= 80
+    return num, i, true
+}
+
+////////////////////////////////
+func _dGotoLastScript(s string, i int) (int, bool) {
+    iRaw := i
+    lenS := len(s)
+    lenD := int64(0)
+    r := true
+    for j := 0; j < 16; j ++ {
+        lenD, i, r = _lGetScript(s, i)
+        if !r {
+            return iRaw, false
+        }
+        if lenS < (i + int(lenD)) {
+            return iRaw, false
+        } else if lenS == (i + int(lenD)) {
+            if lenD < 94 {
+                return iRaw, false
+            }
+            return i, true
+        } else {
+            i += int(lenD)
+        }
+    }
+    return iRaw, false
+}
+
+////////////////////////////////
+func parseScriptInputScriptSig(script string) (string, string, bool, int, bool) {
     script = strings.ToLower(script)
     lenScript := len(script)
-    if (lenScript <= 138) {
-        return false, nil
+    if (lenScript == 0) {
+        return "", "", false, 0, false
     }
-    // Get the next data length and position.
-    _lGet := func(s string, i int) (int64, int, bool) {
-        iRaw := i
-        lenS := len(s)
-        if lenS < (i + 2) {
-            return 0, iRaw, false
-        }
-        f := s[i:i+2]
-        i += 2
-        lenD := int64(0)
-        if f == "4c" {
-            if lenS < (i + 2) {
-                return 0, iRaw, false
-            }
-            f := s[i:i+2]
-            i += 2
-            lenD, _ = strconv.ParseInt(f, 16, 32)
-        } else if f == "4d" {
-            if lenS < (i + 4) {
-                return 0, iRaw, false
-            }
-            f := s[i+2:i+4] + s[i:i+2]
-            i += 4
-            lenD, _ = strconv.ParseInt(f, 16, 32)
-        } else {
-            lenD, _ = strconv.ParseInt(f, 16, 32)
-            if (lenD <0 || lenD > 75) {
-                return 0, iRaw, false
-            }
-        }
-        lenD *= 2
-        return lenD, i, true
-    }
-    
-    // Get the push number and position.
-    _nGet := func(s string, i int) (int64, int, bool) {
-        iRaw := i
-        lenS := len(s)
-        if lenS < (i + 2) {
-            return 0, iRaw, false
-        }
-        f := s[i:i+2]
-        i += 2
-        num, _ := strconv.ParseInt(f, 16, 32)
-        if (num < 81 || num > 96) {
-            return 0, iRaw, false
-        }
-        num -= 80
-        return num, i, true
-    }
-    
-    // Get the last data position.
-    _dGotoLast := func(s string, i int) (int, bool) {
-        iRaw := i
-        lenS := len(s)
-        lenD := int64(0)
-        r := true
-        for j := 0; j < 16; j ++ {
-            lenD, i, r = _lGet(s, i)
-            if !r {
-                return iRaw, false
-            }
-            if lenS < (i + int(lenD)) {
-                return iRaw, false
-            } else if lenS == (i + int(lenD)) {
-                if lenD < 94 {
-                    return iRaw, false
-                }
-                return i, true
-            } else {
-                i += int(lenD)
-            }
-        }
-        return iRaw, false
-    }
-    
-    // Skip to the redeem script.
     r := true
     n := 0
     flag := ""
-    n, r = _dGotoLast(script, n)
+    n, r = _dGotoLastScript(script, n)
     if !r {
-        return false, nil
+        return "", "", false, n, false
     }
-    
-    // Get the public key or multisig script hash
     scriptSig := ""
     multisig := false
     mm := int64(0)
     nn := int64(0)
     kPub := ""
     lenD := int64(0)
-    mm, n, r = _nGet(script, n)
+    mm, n, r = _nGetScript(script, n)
     if r {
         if (mm > 0 && mm < 16) {
             multisig = true
         } else {
-            return false, nil
+            return "", "", multisig, n, false
         }
     }
     if !multisig {
-        lenD, n, r = _lGet(script, n)
+        lenD, n, r = _lGetScript(script, n)
         if !r {
-            return false, nil
+            return "", "", multisig, n, false
         }
         fSig := ""
         if lenScript > (n + int(lenD) + 2) {
@@ -146,16 +146,16 @@ func parseScriptInput(script string) (bool, []string) {
             n += 68
             scriptSig = "21" + kPub + fSig
         } else {
-            return false, nil
+            return "", "", multisig, n, false
         }
     } else {
         var kPubList []string
         for j := 0; j < 16; j ++ {
-            lenD, n, r = _lGet(script, n)
+            lenD, n, r = _lGetScript(script, n)
             if !r {
-                nn, n, r = _nGet(script, n)
+                nn, n, r = _nGetScript(script, n)
                 if (!r || len(kPubList) != int(nn)) {
-                    return false, nil
+                    return "", "", multisig, n, false
                 }
                 kPub, scriptSig = misc.ConvKPubListToScriptHashMultisig(mm, kPubList, nn)
                 break
@@ -164,26 +164,41 @@ func parseScriptInput(script string) (bool, []string) {
                 kPubList = append(kPubList, script[n:n+int(lenD)])
                 n += int(lenD)
             } else {
-                return false, nil
+                return "", "", multisig, n, false
             }
         }
         if lenScript < (n + 2) {
-            return false, nil
+            return "", "", multisig, n, false
         }
         flag = script[n:n+2]
         n += 2
         if (flag != "a9" && flag != "ae") {
-            return false, nil
+            return "", "", multisig, n, false
         }
     }
-    if kPub == "" {
+    return kPub, scriptSig, multisig, n, true
+}
+
+////////////////////////////////
+func parseScriptInput(script string) (bool, []string) {
+    script = strings.ToLower(script)
+    lenScript := len(script)
+    if (lenScript <= 138) {
+        return false, nil
+    }
+    // Get the public key or multisig script hash.
+    kPub, scriptSig, multisig, n, r := parseScriptInputScriptSig(script)
+    if !r {
+        return false, nil
+    }
+    if !r || kPub == "" {
         return false, nil
     }
     // Check the protocol header.
     if lenScript < (n + 22) {
         return false, nil
     }
-    flag = script[n:n+6]
+    flag := script[n:n+6]
     n += 6
     if flag != "006307" {
         return false, nil
@@ -195,13 +210,12 @@ func parseScriptInput(script string) (bool, []string) {
     if header != "KASPLEX" {
         return false, nil
     }
-    
     // Get the next param data and position.
     _pGet := func(s string, i int) (string, int, bool) {
         iRaw := i
         lenS := len(s)
         lenP := int64(0)
-        lenP, i, r = _lGet(s, i)
+        lenP, i, r = _lGetScript(s, i)
         if (!r || lenS < (i + int(lenP))) {
             return "", iRaw, false
         }
@@ -213,7 +227,6 @@ func parseScriptInput(script string) (bool, []string) {
         i += int(lenP)
         return p, i, true
     }
-    
     // Get the param and json data.
     p0 := ""
     p1 := ""
@@ -258,7 +271,6 @@ func parseScriptInput(script string) (bool, []string) {
     if p0 == "" {
         return false, nil
     }
-    
     // Get the from address.
     from := ""
     if multisig {
@@ -270,7 +282,120 @@ func parseScriptInput(script string) (bool, []string) {
 }
 
 ////////////////////////////////
-// Parse the OP data in transaction.
+func buildInputDataMap(list []*protowire.RpcTransactionInput, daaScore uint64) ([]map[string]string, uint64) {
+    txInputs := make([]map[string]string, 0, len(list))
+    amount := uint64(0)
+    for _, input := range list {
+        data := map[string]string{
+            "prevTxId": input.PreviousOutpoint.TransactionId,
+            "prevIndex": strconv.FormatUint(uint64(input.PreviousOutpoint.Index), 10),
+        }
+        if daaScore == 0 || daaScore >= config.HfDaaScore2026Q1 {
+            amount += input.VerboseData.UtxoEntry.Amount
+            data["amount"] = strconv.FormatUint(input.VerboseData.UtxoEntry.Amount, 10)
+            data["spk"] = input.VerboseData.UtxoEntry.ScriptPublicKey.ScriptPublicKey
+            data["type"] = input.VerboseData.UtxoEntry.VerboseData.ScriptPublicKeyType
+            data["address"] = input.VerboseData.UtxoEntry.VerboseData.ScriptPublicKeyAddress
+        }
+        txInputs = append(txInputs, data)
+    }
+    return txInputs, amount
+}
+
+////////////////////////////////
+func buildOutputDataMap(list []*protowire.RpcTransactionOutput, daaScore uint64) ([]map[string]string, uint64) {
+    txOutputs := make([]map[string]string, 0, len(list))
+    amount := uint64(0)
+    for _, output := range list {
+        amount += output.Amount
+        txOutputs = append(txOutputs, map[string]string{
+            "amount": strconv.FormatUint(uint64(output.Amount), 10),
+            "spk": output.ScriptPublicKey.ScriptPublicKey,
+            "type": output.VerboseData.ScriptPublicKeyType,
+            "address": output.VerboseData.ScriptPublicKeyAddress,
+        })
+    }
+    return txOutputs, amount
+}
+
+////////////////////////////////
+func parsePayloadOpData(txData *storage.DataTransactionType) (*lyncs.DataCallFuncType) {
+    if txData.DaaScore < config.HfDaaScore2026Q1 {
+        return nil
+    }
+    if txData.Data.Payload == "" {
+        return nil
+    }
+    isCoinbase := false
+    if len(txData.Data.Inputs) == 0 {
+        isCoinbase = true
+    }
+    payload, err := hex.DecodeString(txData.Data.Payload)
+    if err != nil || len(payload) == 0 {
+        return nil
+    }
+    decoded := make(map[string]string, 32)
+    scriptSig := ""
+    if !isCoinbase {
+        err = json.Unmarshal(payload, &decoded)
+        if err != nil {
+            return nil
+        }
+        if txData.Data.Inputs[0].VerboseData.UtxoEntry.VerboseData.ScriptPublicKeyType == "scripthash" {
+            _, scriptSig, _, _, _ = parseScriptInputScriptSig(txData.Data.Inputs[0].SignatureScript)
+        } else {
+            scriptSig = txData.Data.Inputs[0].VerboseData.UtxoEntry.ScriptPublicKey.ScriptPublicKey
+        }
+        decoded["from"] = txData.Data.Inputs[0].VerboseData.UtxoEntry.VerboseData.ScriptPublicKeyAddress
+    } else {
+        
+        // op-rollup ...
+        
+    }
+    if (!validateBy(validateP,decoded,"p") || !validateBy(validateOp,decoded,"op") || (decoded["to"]!="" && !validateBy(validateAscii,decoded,"to"))) {
+        return nil
+    }
+    validateBy(validateTickTxId, decoded, "tick")
+    validateBy(validateTxId, decoded, "ca")
+    testnet := ""
+    if eRuntime.testnet {
+        testnet = "1"
+    }
+    txInputs, amountIn := buildInputDataMap(txData.Data.Inputs, 0)
+    txOutputs, amountOut := buildOutputDataMap(txData.Data.Outputs, 0)
+    fee := uint64(0)
+    if amountIn > amountOut {
+        fee = amountIn - amountOut
+    }
+    callPayload := &lyncs.DataCallFuncType{
+        Name: decoded["p"] + "_" + decoded["op"],
+        Fn: "init",
+        Session: &lyncs.DataSessionType{
+            Block: map[string]string{
+                "daaScore": strconv.FormatUint(txData.DaaScore, 10),
+                "hash": txData.BlockAccept,
+                "timestamp": strconv.FormatUint(txData.BlockTime, 10),
+            },
+            Tx: map[string]string{
+                "id": txData.TxId,
+                "hash": txData.Data.VerboseData.Hash,
+                "fee": strconv.FormatUint(fee, 10),
+            },
+            TxInputs: txInputs,
+            TxOutputs: txOutputs,
+            Op: map[string]string{
+                "index": "0",
+                "spkFrom": scriptSig,
+                "isPayload": "1",
+                "testnet": testnet,
+            },
+            OpParams: decoded,
+        },
+    }
+    return callPayload
+}
+
+////////////////////////////////
 func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType) {
     if (txData == nil || txData.Data == nil) {
         return nil
@@ -279,21 +404,11 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
     if lenInput <= 0 {
         return nil
     }
-    txInputs := make([]map[string]string, 0, len(txData.Data.Inputs))
-    txOutputs := make([]map[string]string, 0, len(txData.Data.Outputs))
-    for _, input := range txData.Data.Inputs {
-        txInputs = append(txInputs, map[string]string{
-            "prevTxId": input.PreviousOutpoint.TransactionId,
-            "prevIndex": strconv.FormatUint(uint64(input.PreviousOutpoint.Index),10),
-        })
-    }
-    for _, output := range txData.Data.Outputs {
-        txOutputs = append(txOutputs, map[string]string{
-            "amount": strconv.FormatUint(uint64(output.Amount),10),
-            "spk": output.ScriptPublicKey.ScriptPublicKey,
-            "type": output.VerboseData.ScriptPublicKeyType,
-            "address": output.VerboseData.ScriptPublicKeyAddress,
-        })
+    txInputs, amountIn := buildInputDataMap(txData.Data.Inputs, txData.DaaScore)
+    txOutputs, amountOut := buildOutputDataMap(txData.Data.Outputs, txData.DaaScore)
+    fee := uint64(0)
+    if amountIn > amountOut {
+        fee = amountIn - amountOut
     }
     callList := make([]lyncs.DataCallFuncType, 0, 4)
     for i, input := range txData.Data.Inputs {
@@ -344,14 +459,14 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
             Fn: "init",
             Session: &lyncs.DataSessionType{
                 Block: map[string]string{
-                    "daaScore": strconv.FormatUint(txData.DaaScore,10),
+                    "daaScore": strconv.FormatUint(txData.DaaScore, 10),
                     "hash": txData.BlockAccept,
-                    "timestamp": strconv.FormatUint(txData.BlockTime,10),
+                    "timestamp": strconv.FormatUint(txData.BlockTime, 10),
                 },
                 Tx: map[string]string{
                     "id": txData.TxId,
-                    //"hash": txData.Data.VerboseData.Hash,
-                    "fee": "0",
+                    "hash": txData.Data.VerboseData.Hash,
+                    "fee": strconv.FormatUint(fee, 10),
                 },
                 TxInputs: txInputs,
                 TxOutputs: txOutputs,
@@ -368,7 +483,6 @@ func parseOpData(txData *storage.DataTransactionType) ([]lyncs.DataCallFuncType)
 }
 
 ////////////////////////////////
-// Parse the OP data and prepare the state key in transaction list.
 func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOperationType, storage.DataStateMapType, int64, error) {
     mtss := time.Now().UnixMilli()
     lenTx := len(txDataList)
@@ -376,46 +490,46 @@ func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOp
     opDataMap := make(map[string]*storage.DataOperationType, lenTx)
     txIdMap := make(map[string]bool, lenTx)
     callInitList := make([]lyncs.DataCallFuncType, 0, lenTx*12/10)
+    callPayloadInitList := make([]lyncs.DataCallFuncType, 0, lenTx*12/10)
     mutex := new(sync.RWMutex)
+    mutexPayload := new(sync.RWMutex)
     misc.GoBatch(lenTx, func(i int, iBatch int) (error) {
         callList := parseOpData(&txDataList[i])
-        if len(callList) <= 0 {
-            return nil
+        if len(callList) > 0 {
+            mutex.Lock()
+            callInitList = append(callInitList, callList...)
+            mutex.Unlock()
         }
-        mutex.Lock()
-        callInitList = append(callInitList, callList...)
-        mutex.Unlock()
+        callPayload := parsePayloadOpData(&txDataList[i])
+        if callPayload != nil {
+            mutexPayload.Lock()
+            callPayloadInitList = append(callPayloadInitList, *callPayload)
+            mutexPayload.Unlock()
+        }
         return nil
     })
+    lenCallInitList := len(callInitList)
+    callInitList = append(callInitList, callPayloadInitList...)
     if len(callInitList) <= 0 {
         return nil, nil, 0, nil
     }
-
-fmt.Println("lenCallInit = ", len(callInitList))
-mts1 := time.Now().UnixMilli()
-fmt.Println("mts = ", mts1)
-fmt.Println("lenTx = ", lenTx)
-    
     resultList := lyncs.CallFuncParallel(callInitList, storage.DataStateMapType{}, nil, nil,
         // Process result use hook.
         func(c *lyncs.DataCallFuncType, i int, r *lyncs.DataResultType, err error) (*lyncs.DataResultType) {
             if err != nil || r == nil {
-                
-if err != nil {
-    fmt.Println("CallFuncParallel error: ", err)
-}
-                
                 return nil
             }
             // Check if OP recycle.
             r.Op["spkFrom"] = c.Session.Op["spkFrom"]
+            r.Op["testnet"] = c.Session.Op["testnet"]
             r.Op["feeLeast"] = r.Op["feeLeast"]
             validateBy(validateAmount, r.Op, "feeLeast")
             if c.Session.Op["index"] != "0" && r.Op["isRecycle"] != "1" {
                 return nil
             }
-            delete(r.Op, "isRecycle")
-
+            if c.Session.Op["isPayload"] == "1" && r.Op["isRecycle"] == "1" {
+                return nil
+            }
             // Check state key.
             validateStateKey(r.KeyRules)
             if len(r.KeyRules) <= 0 {
@@ -478,19 +592,15 @@ if err != nil {
             return r
         },
     )
-    
-mts2 := time.Now().UnixMilli()
-fmt.Println("mts = ", mts2)
-fmt.Println("lenResult1 = ", len(resultList))
-lenResult := 0
-
+    var resultPayloadList []*lyncs.DataResultType
+    if len(callPayloadInitList) > 0 {
+        resultPayloadList = resultList[lenCallInitList:]
+        resultList = resultList[:lenCallInitList]
+    }
     for i, r := range resultList {
         if r == nil {
             continue
         }
-        
-lenResult ++
-        
         session := callInitList[i].Session
         txId := session.Tx["id"]
         for k := range r.KeyRules {
@@ -517,21 +627,52 @@ lenResult ++
         opDataMap[txId].OpScript = append(opDataMap[txId].OpScript, r.OpParams)
         opDataMap[txId].OpIndex = append(opDataMap[txId].OpIndex, index)
         opDataMap[txId].OpKeyRules = append(opDataMap[txId].OpKeyRules, r.KeyRules)
-        if r.Op["feeLeast"] != "0" {
+        if r.Op["feeLeast"] != "0" && session.Tx["fee"] == "0" {
             for _, input := range session.TxInputs {
                 txIdMap[input["prevTxId"]] = true
             }
         }
+        if r.Op["isRecycle"] == "1" {
+            opDataMap[txId].Op["isRecycle"] = "1"
+        }
+        
+fmt.Println("p2sh-opDataMap["+txId+"]:", opDataMap[txId])
+        
     }
-    
-fmt.Println("lenResult2 = ", lenResult)
-
+    for i, r := range resultPayloadList {
+        if r == nil {
+            continue
+        }
+        session := callPayloadInitList[i].Session
+        txId := session.Tx["id"]
+        if opDataMap[txId] != nil && opDataMap[txId].Op["isRecycle"] == "1" {
+            continue
+        }
+        for k := range r.KeyRules {
+            stateMap[k] = nil
+            if strings.HasPrefix(k, storage.KeyPrefixStateStats) {
+                delete(r.KeyRules, k)
+            }
+        }
+        opDataMap[txId] = &storage.DataOperationType{
+            Block: session.Block,
+            Tx: session.Tx,
+            TxInputs: session.TxInputs,
+            TxOutputs: session.TxOutputs,
+            Op: r.Op,
+            OpScript: []map[string]string{r.OpParams},
+            OpIndex: []int{0},
+            OpKeyRules: []map[string]string{r.KeyRules},
+            StBefore: make([]string, 0, 8),
+            StAfter: make([]string, 0, 8),
+        }
+        
+fmt.Println("payload-opDataMap["+txId+"]:", opDataMap[txId])
+        
+    }
     if len(opDataMap) <= 0 {
         return nil, nil, 0, nil
     }
-    
-fmt.Println("lenOpDataMap = ", len(opDataMap))
-
     txDataListInput := make([]storage.DataTransactionType, 0, len(txIdMap))
     for txId := range txIdMap {
         txDataListInput = append(txDataListInput, storage.DataTransactionType{TxId: txId})
@@ -552,7 +693,7 @@ fmt.Println("lenOpDataMap = ", len(opDataMap))
             opScore = daaScoreNow * 10000
         }
         opDataMap[txData.TxId].Op["score"] = strconv.FormatUint(opScore, 10)
-        if opDataMap[txData.TxId].Op["feeLeast"] != "0" {
+        if opDataMap[txData.TxId].Op["feeLeast"] != "0" && opDataMap[txData.TxId].Tx["fee"] == "0" {
             amountIn := uint64(0)
             amountOut := uint64(0)
             for _, output := range txData.Data.Outputs {
@@ -750,6 +891,3 @@ func validateDec(dec *string) (bool) {
     }
     return true
 }
-
-// ...
-

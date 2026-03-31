@@ -21,6 +21,7 @@ type v1resultOp struct {
     Daas string `json:"daas,omitempty"`
     Daae string `json:"daae,omitempty"`
     Amt string `json:"amt,omitempty"`
+    Memo string `json:"memo,omitempty"`
     From string `json:"from,omitempty"`
     To string `json:"to,omitempty"`
     Utxo string `json:"utxo,omitempty"`
@@ -194,8 +195,11 @@ func v1FormatOpInfo(txIdList []string, opDataMap map[string]*storage.DataIndexOp
             result.Pre = opData.Script["pre"]
             result.Dec = opData.Script["dec"]
             result.Mod = opData.Script["mod"]
-        } else if (opData.Script["op"] == "mint" || opData.Script["op"] == "transfer" || opData.Script["op"] == "issue" || opData.Script["op"] == "burn") {
+        } else if (opData.Script["op"] == "mint" || opData.Script["op"] == "issue" || opData.Script["op"] == "burn") {
             result.Amt = opData.Script["amt"]
+        } else if (opData.Script["op"] == "transfer") {
+            result.Amt = opData.Script["amt"]
+            result.Memo = opData.Script["memo"]
         } else if (opData.Script["op"] == "list") {
             result.Amt = opData.Script["amt"]
             result.Utxo = opData.Script["utxo"]

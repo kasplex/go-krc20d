@@ -51,7 +51,7 @@ krc20 = {
 	makeP2SH = function(spk, data)
 		local s = krc20.fromhex(spk).."\x00\x63\x07\x6b\x61\x73\x70\x6c\x65\x78\x00"..krc20.makeScriptData(data).."\x68"
 		local k = "\x08"..crypt.blake2b256(s)
-		if session and session.op and session.op.testnet=="1" then return crypt.encbech32x(k,"kaspatest"), s
+		if session and session.op and session.op.testnet=="1" then return crypt.encbech32x(k,"kaspatest"), krc20.tohex(s)
 		else return crypt.encbech32x(k,"kaspa"), krc20.tohex(s) end
 	end,
 

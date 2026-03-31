@@ -145,6 +145,9 @@ fmt.Println("mts = ", mts0)
                 session.Op[k] = opDataList[i].Op[k]
             }
             session.Op["index"] = strconv.Itoa(opDataList[i].OpIndex[j])
+            
+fmt.Println("session: ", session)
+            
             callRunList = append(callRunList, lyncs.DataCallFuncType{
                 Name: opDataList[i].OpScript[j]["p"] + "_" + opDataList[i].OpScript[j]["op"],
                 Fn: "run",
@@ -318,10 +321,6 @@ fmt.Println("stateMap["+k+"]: ", v)
             cpHeader := opData.Op["score"] +","+ opData.Tx["id"] +","+ opData.Block["hash"] +","+ opData.OpScript[0]["p"] +","+ opData.OpScript[0]["op"]
             sum := blake2b.Sum256([]byte(cpHeader))
             cpHeader = fmt.Sprintf("%064x", sum[:])
-            
-            cpState := strings.Join(opData.StAfter, ";")
-            sum = blake2b.Sum256([]byte(cpState))
-            cpState = fmt.Sprintf("%064x", sum[:])
                         
             mhState.Combine(opData.MhState)
             mhSerialized := mhState.Serialize()
@@ -329,9 +328,15 @@ fmt.Println("stateMap["+k+"]: ", v)
             opData.StCommitment = fmt.Sprintf("%064x", sum[:])
             stCommitmentLast = fmt.Sprintf("%0384x", (*mhSerialized)[:])
             
-            // replace to StCommitment in Checkpoint In the future HF ...
-            
-            sum = blake2b.Sum256([]byte(checkpointLast + cpHeader + cpState))
+            daaScore, _ := strconv.ParseUint(opData.Block["daaScore"], 10, 64)
+            if daaScore >= config.HfDaaScore2026Q1 {
+                sum = blake2b.Sum256([]byte(checkpointLast + cpHeader + opData.StCommitment))
+            } else {
+                cpState := strings.Join(opData.StAfter, ";")
+                sum = blake2b.Sum256([]byte(cpState))
+                cpState = fmt.Sprintf("%064x", sum[:])
+                sum = blake2b.Sum256([]byte(checkpointLast + cpHeader + cpState))
+            }
             opData.Checkpoint = fmt.Sprintf("%064x", sum[:])
             
             checkpointLast = opData.Checkpoint
