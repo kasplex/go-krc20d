@@ -31,7 +31,7 @@ type v1responseInfo struct {
 }
 
 ////////////////////////////////
-const cacheTimeoutInfo = 5000
+const cacheTimeoutInfo = 1000
 
 ////////////////////////////////
 var dataInfo v1resultInfo
@@ -140,5 +140,7 @@ func getInfoKRC20() (bool, bool, *v1resultInfo, error) {
     } else {
         synced = info.synced
     }
+    dataInfo = *info
+    cacheStateInfo.mtsUpdate = time.Now().UnixMilli()
     return info.available, synced, info, nil
 }

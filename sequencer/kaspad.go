@@ -5,6 +5,7 @@ package sequencer
 import (
     "os"
     "fmt"
+    "sync"
     "time"
     "context"
     "syscall"
@@ -28,6 +29,14 @@ type kaspadRuntimeType struct {
     faultGrpc []uint8
 }
 var kaspadRuntime kaspadRuntimeType
+
+////////////////////////////////
+type kaspadSyncStatusCacheType struct {
+    sync.RWMutex
+    synced bool
+    daaScore uint64
+}
+var kaspadSyncStatusCache kaspadSyncStatusCacheType
 
 ////////////////////////////////
 type kaspadCacheDaaScoreType struct {
@@ -62,7 +71,7 @@ func kaspadInit(cfg config.KaspadConfig) (error) {
     }
     kaspadCacheDaaScore.Index = make([]string, 0, kaspadCacheDaaScoreMax)
     kaspadCacheDaaScore.DaaScore = make(map[string]uint64, kaspadCacheDaaScoreMax)
-    GetSyncStatus = kaspadGetSyncStatus
+    GetSyncStatus = kaspadGetSyncStatusCache
     GetVspcTxDataList = kaspadGetVspcTxDataList
     GetTxDataMap = kaspadGetTxDataMap
     GetArchiveVspcTxDataList = kaspadGetNodeArchiveVspcTxDataList
@@ -242,10 +251,27 @@ func kaspadGetTxDataMap(txDataList []storage.DataTransactionType) (map[string]*p
 ////////////////////////////////
 func kaspadGetSyncStatus() (bool, uint64, error) {
     info, err := kaspadGetServerInfo()
+    kaspadSyncStatusCache.Lock()
+    defer kaspadSyncStatusCache.Unlock()
     if err != nil {
+        kaspadSyncStatusCache.synced = false
+        kaspadSyncStatusCache.daaScore = 0
         return false, 0, err
     }
+    kaspadSyncStatusCache.synced = info.IsSynced
+    kaspadSyncStatusCache.daaScore = info.VirtualDaaScore
     return info.IsSynced, info.VirtualDaaScore, nil
+}
+
+////////////////////////////////
+func kaspadGetSyncStatusCache() (bool, uint64, error) {
+    var synced bool
+    var daaScore uint64
+    kaspadSyncStatusCache.RLock()
+    synced = kaspadSyncStatusCache.synced
+    daaScore = kaspadSyncStatusCache.daaScore
+    kaspadSyncStatusCache.RUnlock()
+    return synced, daaScore, nil
 }
 
 ////////////////////////////////

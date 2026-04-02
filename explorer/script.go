@@ -3,9 +3,6 @@
 package explorer
 
 import (
-
-    "fmt"
-    
     "time"
     "sync"
     "strconv"
@@ -635,9 +632,6 @@ func ParseOpDataList(txDataList []storage.DataTransactionType) ([]storage.DataOp
         if r.Op["isRecycle"] == "1" {
             opDataMap[txId].Op["isRecycle"] = "1"
         }
-        
-fmt.Println("p2sh-opDataMap["+txId+"]:", opDataMap[txId])
-        
     }
     for i, r := range resultPayloadList {
         if r == nil {
@@ -666,9 +660,6 @@ fmt.Println("p2sh-opDataMap["+txId+"]:", opDataMap[txId])
             StBefore: make([]string, 0, 8),
             StAfter: make([]string, 0, 8),
         }
-        
-fmt.Println("payload-opDataMap["+txId+"]:", opDataMap[txId])
-        
     }
     if len(opDataMap) <= 0 {
         return nil, nil, 0, nil

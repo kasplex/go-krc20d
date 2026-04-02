@@ -25,7 +25,6 @@ var GetTxDataMap func([]storage.DataTransactionType) (map[string]*protowire.RpcT
 var GetArchiveVspcTxDataList func(string) (string, string, []string, map[string]string, error)
 var GetArchiveTxData func(string) (string, error)
 
-
 ////////////////////////////////
 func Init(cfg config.SequencerConfig, cfgHysteresis int, cfgDaaScoreRange [][2]uint64) (error) {
     var err error

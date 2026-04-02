@@ -22,7 +22,7 @@ function init()
 	end
 	local opp = {tick=tick}
 	
-	if ds:cmp(403756000)>0 then
+	if ds:cmp(408300500)>0 then
 		local memo = ""
 		if sp.memo~=nil then
 			memo = string.sub(sp.memo, 1, 256)

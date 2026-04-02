@@ -32,6 +32,10 @@ func main() {
         }
         os.Chdir(dir)
     }
+
+    // Load config.
+    var cfg config.Config
+    config.Load(&cfg)
     
     // Use the file lock for startup.
     fLock := "./.lockExecutor"
@@ -46,10 +50,6 @@ func main() {
         log.Fatalln("main fatal:", err.Error())
     }
     defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
-
-    // Load config.
-    var cfg config.Config
-    config.Load(&cfg)
     
     // Set the log level.
     logOpt := &slog.HandlerOptions{Level: slog.LevelError,}
