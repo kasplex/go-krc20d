@@ -117,6 +117,7 @@ type ApiConfig struct {
     FullISD bool `json:"fullISD"`
     AllowUnsync bool `json:"allowUnsync"`
     AllowDebug bool `json:"allowDebug"`
+    SeedISD string `json:"seedISD"`
 }
 type Config struct {
     Startup StartupConfig `json:"startup"`
@@ -223,6 +224,7 @@ func Load(cfg *Config) {
         }
         cfg.Startup.Lyncs = cfg.Lyncs
         cfg.Startup.CompactOnInit = cfg.Rocksdb.CompactOnInit
+        cfg.Api.SeedISD = cfg.Startup.SeedISD
         return
     }
     if args.Testnet {
@@ -240,7 +242,7 @@ func Load(cfg *Config) {
     daaScoreRange := &[][2]uint64{}
     if args.DaaScoreRange != "" {
         err = json.Unmarshal([]byte(args.DaaScoreRange), daaScoreRange)
-        if err != nil {
+        if err == nil {
             cfg.Startup.DaaScoreRange = *daaScoreRange
         }
     }
@@ -287,6 +289,7 @@ func Load(cfg *Config) {
         FullISD: args.ApiFullISD,
         AllowUnsync: args.ApiAllowUnsync,
         AllowDebug: args.ApiAllowDebug,
+        SeedISD: cfg.Startup.SeedISD,
     }
     cfg.Debug = args.Debug
     cfg.Testnet = args.Testnet

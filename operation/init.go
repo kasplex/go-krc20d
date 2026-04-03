@@ -126,10 +126,6 @@ func ExecuteBatch(opDataList []storage.DataOperationType, stateMap storage.DataS
     if len(opDataList) <= 0 {
         return rollback, nil, 0, nil
     }
-
-mts0 := time.Now().UnixMilli()
-fmt.Println("mts = ", mts0)
-    
     callRunList := make([]lyncs.DataCallFuncType, 0, lenOp*12/10)
     for i := range opDataList {
         for j := range opDataList[i].OpScript {
@@ -145,9 +141,6 @@ fmt.Println("mts = ", mts0)
                 session.Op[k] = opDataList[i].Op[k]
             }
             session.Op["index"] = strconv.Itoa(opDataList[i].OpIndex[j])
-            
-fmt.Println("session: ", session)
-            
             callRunList = append(callRunList, lyncs.DataCallFuncType{
                 Name: opDataList[i].OpScript[j]["p"] + "_" + opDataList[i].OpScript[j]["op"],
                 Fn: "run",
@@ -162,16 +155,9 @@ fmt.Println("session: ", session)
     stRowBeforeMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
     stRowAfterMap := make(map[string]map[int][]*storage.DataKvRowType, len(callRunList))
     mutex := new(sync.RWMutex)
-
-mts1 := time.Now().UnixMilli()
-fmt.Println("mts = ", mts1)
-    
     lyncs.CallFuncParallel(callRunList, stateMap, nil, nil,
         func(c *lyncs.DataCallFuncType, i int, r *lyncs.DataResultType, err error) (*lyncs.DataResultType) {
             if err != nil {
-                
-fmt.Println("error: ", err.Error())
-                
                 r = &lyncs.DataResultType{
                     Op: map[string]string{
                       "score": c.Session.Op["score"],
@@ -222,11 +208,6 @@ fmt.Println("error: ", err.Error())
             return r
         },
     )
-
-mts2 := time.Now().UnixMilli()
-fmt.Println("mts = ", mts2)
-fmt.Println("Lyncs TPS: ", (len(callRunList)*1000)/int(mts2-mts1+1))
-    
     misc.GoBatch(len(opDataList), func(i int, iBatch int) (error) {
         opData := &opDataList[i]
         iScriptAccept := -1
@@ -279,26 +260,6 @@ fmt.Println("Lyncs TPS: ", (len(callRunList)*1000)/int(mts2-mts1+1))
         }
         return nil
     })
-
-fmt.Println("mts = ", time.Now().UnixMilli())
-        
-/*for k,v := range resultMap {
-fmt.Println("resultMap["+k+"]: ", v[0].Op, v[0].OpParams, v[0].KeyRules, v[0].State)
-}
-for k,v := range stLineBeforeMap {
-fmt.Println("stLineBeforeMap["+k+"]: ", v)
-}
-for k,v := range stLineAfterMap {
-fmt.Println("stLineAfterMap["+k+"]: ", v)
-}
-for k,v := range opDataList {
-fmt.Println("StBefore/StAfter: ", k, v.StBefore, v.StAfter)
-fmt.Println("SsInfo: ", v.SsInfo)
-}
-for k,v := range stateMap {
-fmt.Println("stateMap["+k+"]: ", v)
-}*/
-
     stRowMapBefore := make(map[string]*storage.DataKvRowType, lenOp*4)
     stRowMapAfter := make(map[string]*storage.DataKvRowType, lenOp*4)
     stStatsMap := make(map[string]*storage.StateStatsType, 16)
@@ -351,16 +312,6 @@ fmt.Println("stateMap["+k+"]: ", v)
     rollback.StRowMapBefore = stRowMapBefore
     rollback.CheckpointAfter = checkpointLast
     rollback.StCommitmentAfter = stCommitmentLast
-
-mts4 := time.Now().UnixMilli()
-fmt.Println("mts = ", mts4)
-fmt.Println("ExecuteBatch TPS: ", (len(callRunList)*1000)/int(mts4-mts0+1))
-        
-/*for k,v := range stateMap {
-fmt.Println("stateMap["+k+"]: ", v)
-}
-fmt.Println("rollback: ", rollback.DaaScoreStart, rollback.DaaScoreEnd, rollback.CheckpointBefore, rollback.CheckpointAfter, rollback.OpScoreLast)*/
-
     return rollback, stRowMapAfter, time.Now().UnixMilli() - mtss, nil
 }
 

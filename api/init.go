@@ -5,6 +5,8 @@ import (
     "os"
     "time"
     "sync"
+    "context"
+    "strings"
     "strconv"
     "log/slog"
     "sync/atomic"
@@ -41,6 +43,8 @@ type runtimeType struct {
     cfg config.ApiConfig
     serverHTTP *fiber.App
     serverWS *fiber.App
+    ctxSubmitISD context.Context
+    cancelSubmitISD context.CancelFunc
     testnet bool
 }
 var aRuntime runtimeType
@@ -168,10 +172,27 @@ func InitSync(c chan os.Signal) {
         }
         c <- os.Interrupt
     }()
+    aRuntime.ctxSubmitISD, aRuntime.cancelSubmitISD = context.WithCancel(context.Background())
+    if aRuntime.cfg.SeedISD != "" && strings.ToLower(aRuntime.cfg.SeedISD[:4]) == "http" {
+        go func() {
+            ticker := time.NewTicker(300 * time.Second)
+            defer ticker.Stop()
+            for {
+                select {
+                case <-aRuntime.ctxSubmitISD.Done():
+                    return
+                case <-ticker.C:
+                    url := aRuntime.cfg.SeedISD+"/submit/"+strconv.Itoa(aRuntime.cfg.Port)+"/"+strconv.Itoa(aRuntime.cfg.PortISD)
+                    fiber.Get(url).Timeout(3 * time.Second).Bytes()
+                }
+            }
+        }()
+    }
 }
 
 ////////////////////////////////
 func Shutdown() {
+    aRuntime.cancelSubmitISD()
     if aRuntime.serverHTTP != nil {
         aRuntime.serverHTTP.Shutdown()
     }
