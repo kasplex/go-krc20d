@@ -1,0 +1,50 @@
+
+x-common: &common
+  ulimits:
+    nofile:
+      soft: 65535
+      hard: 65535
+  sysctls:
+    net.core.somaxconn: "2048"
+    net.ipv4.tcp_syncookies: "1"
+    net.ipv4.ip_local_port_range: "1024 65535"
+  logging:
+    driver: json-file
+    options:
+      max-size: "100m"
+      max-file: "16"
+  restart: unless-stopped
+  networks:
+    - krc20d-network
+
+services:
+  kaspad:
+    <<: *common
+    image: ghcr.io/kasplex/kaspad:1.1.0
+    container_name: kaspad
+    command:
+      - "--utxoindex"
+      - "--appdir=/app/data"
+      - "--rpclisten=0.0.0.0:16110"
+      - "--disable-upnp"
+    volumes:
+      - ./data-kaspad:/app/data
+  krc20d:
+    <<: *common
+    image: ghcr.io/kasplex/krc20d:3.01.260403
+    container_name: krc20d
+    ports:
+      - "8005:8005"
+      - "8006:8006"
+    command:
+      - "--kaspad-grpc=kaspad:16110"
+      - "--rocks-dtl-index=86400000"
+      - "--rocks-path=/app/data"
+    depends_on:
+      - kaspad
+    volumes:
+      - ./data-krc20d:/app/data
+
+networks:
+  krc20d-network:
+    driver: bridge

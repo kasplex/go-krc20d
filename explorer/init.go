@@ -41,8 +41,6 @@ var daaScoreRange = [][2]uint64{
 }
 
 ////////////////////////////////
-//const lenVspcListMax = 1000
-//const lenVspcCheck = 200
 const lenVspcListRuntimeMax = 2400
 const lenReorgDaaScoreMax = 864000
 

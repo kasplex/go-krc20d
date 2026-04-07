@@ -16,11 +16,11 @@
     },
     "cassandra": {
         "host": "",
-        "port": 9142,
+        "port": 9042,
         "user": "",
         "pass": "",
-        "crt": "sf-class2-root.crt",
-        "space": "kpdb01mainnet"
+        "crt": "",
+        "space": ""
     },
     "rocksdb": {
         "path": "./data",
