@@ -1,14 +1,24 @@
 ## KRC-20 Node System For Kaspa Ecosystem
 
+<br>
+
 ### Operating Environment
 
 OS - 64-bit Linux (Ubuntu24.04 recommended)
 
-HW - 64-bit little-endian, At least 12 cores, 24GB RAM, 800GB SSD (16 cores, 32GB RAM, 1TB NVMe recommended)
+HW - 64-bit little-endian
+
+   - 12 cores, 24GB RAM, 800GB SSD at least
+
+   - 16 cores, 32GB RAM, 1TB NVMe recommended
+
+<br>
 
 ### Download the latest version
 
 https://github.com/kasplex/go-krc20d/releases
+
+<br>
 
 ### Deploying using binary
 
@@ -73,6 +83,8 @@ Help Options:
   -h, --help                 Show this help message
 </pre>
 
+<br>
+
 ### Deploying using Docker Compose
 
 After startup, a separate kaspa node will be deployed simultaneously, and no additional node needs to be provided; the startup parameters of kaspad and krc20d can be changed in the yml file.
@@ -84,6 +96,8 @@ After startup, a separate kaspa node will be deployed simultaneously, and no add
 #### Testnet-10:
 
 <pre>docker compose -f ./compose.testnet.yml up -d</pre>
+
+<br>
 
 ### API Reference
 
