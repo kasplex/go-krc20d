@@ -153,6 +153,8 @@ var args = &cmdConfig{  // default
 
 ////////////////////////////////
 var argsTestnet = &cmdConfig{  // default testnet
+    BlockGenesis: "93b6a490ef1105e7e9cbc531dc051ba220afb566e16b2a9fcfed5d250712ec47",
+    DaaScoreRange: "[[425179465,18446744073709551615]]",
     Sequencer: "kaspad",
     Hysteresis: 3,
     LoopDelay: 550,
