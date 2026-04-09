@@ -85,7 +85,7 @@ Help Options:
 
 <br>
 
-### Deploying using Docker Compose
+### Deploying using docker-compose
 
 After startup, a separate kaspa node will be deployed simultaneously, and no additional node needs to be provided; the startup parameters of kaspad and krc20d can be changed in the yml file.
 
