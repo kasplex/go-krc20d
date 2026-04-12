@@ -124,7 +124,8 @@ func runISD(seedISD string) (error) {
                 return fmt.Errorf("data invalid")
             }
             var row *storage.DataKvRowType
-            row, err = storage.ParseDataKvRow(data[:i])
+            //row, err = storage.ParseDataKvRow(data[:i])
+            row, err = storage.ParseCopyDataKvRow(data[:i])
             if row != nil {
                 if cf == -1 {
                     cf = storage.CheckKeyPrefixCF(string(row.Key))
@@ -135,7 +136,8 @@ func runISD(seedISD string) (error) {
                     }
                 }
                 wg.Add(1)
-                go func(row *storage.DataKvRowType) {
+                go func(row *storage.DataKvRowType, cf int) {
+                    defer wg.Done()
                     err := storage.SaveDataRowISD(cf, row)
                     if err != nil {
                         slog.Warn("storage.SaveDataRowISD failed.", "err", err)
@@ -144,8 +146,7 @@ func runISD(seedISD string) (error) {
                         mhState.Add(*row.P)
                         mutex.Unlock()
                     }
-                    wg.Done()
-                }(row)
+                }(row, cf)
             }
             if i+1 >= len(data) {
                 break

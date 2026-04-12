@@ -45,6 +45,22 @@ func ParseDataKvRow(data []byte) (*DataKvRowType, error) {
 }
 
 ////////////////////////////////
+func ParseCopyDataKvRow(data []byte) (*DataKvRowType, error) {
+    i := bytes.IndexByte(data, 61)
+    if i <= 0 {
+        return nil, fmt.Errorf("data invalid")
+    }
+    raw := make([]byte, len(data))
+    copy(raw, data)
+    row := &DataKvRowType{
+        P: &raw,
+        Key: raw[:i],
+        Val: raw[i+1:],
+    }
+    return row, nil
+}
+
+////////////////////////////////
 func ConvIndexOpDataToKvRow(key string, opData *DataOperationType) (*DataKvRowType) {
     fee, _ := strconv.ParseUint(opData.Tx["fee"], 10, 64)
     FeeLeast, _ := strconv.ParseUint(opData.Op["feeLeast"], 10, 64)

@@ -31,7 +31,7 @@ services:
       - ./data-kaspad:/app/data
   krc20d:
     <<: *common
-    image: ghcr.io/kasplex/krc20d:3.01.260403
+    image: ghcr.io/kasplex/krc20d:3.01.260412
     container_name: krc20d
     ports:
       - "8005:8005"
