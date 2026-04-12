@@ -30,7 +30,7 @@ A usable kaspa node for gRPC is required.
 
 #### Testnet-10:
 
-<pre>./krc20d --testnet --kaspad-grpc=127.0.0.1:16210 blockgenesis=93b6a490ef1105e7e9cbc531dc051ba220afb566e16b2a9fcfed5d250712ec47 --daascorerange=[[425179465,18446744073709551615]]</pre>
+<pre>./krc20d --testnet --kaspad-grpc=127.0.0.1:16210</pre>
 
 #### Show startup parameters:
 

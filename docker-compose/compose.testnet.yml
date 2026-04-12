@@ -40,8 +40,6 @@ services:
     command:
       - "--testnet"
       - "--kaspad-grpc=kaspad:16210"
-      - "--blockgenesis=93b6a490ef1105e7e9cbc531dc051ba220afb566e16b2a9fcfed5d250712ec47"
-      - "--daascorerange=[[425179465,18446744073709551615]]"
       - "--rocks-dtl-index=86400000"
       - "--rocks-path=/app/data-tn10"
     depends_on:
