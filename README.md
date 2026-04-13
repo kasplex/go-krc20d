@@ -8,7 +8,7 @@ OS - 64-bit Linux (Ubuntu24.04 recommended)
 
 HW - 64-bit little-endian
 
-   - 12 cores, 24GB RAM, 800GB SSD at least
+   - 8 cores, 16GB RAM, 600GB SSD at least
 
    - 16 cores, 32GB RAM, 1TB NVMe recommended
 
