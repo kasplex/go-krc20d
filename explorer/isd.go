@@ -92,6 +92,7 @@ func runISD(seedISD string) (error) {
     keyPrefixStats := []byte(storage.KeyPrefixStateStats)
     lenPrefix := len(keyPrefixStats)
     mutex := new(sync.Mutex)
+    lenDot := 0
     for {
         err = _writeWithTimeout(headerRequest)
         if err != nil {
@@ -133,6 +134,11 @@ func runISD(seedISD string) (error) {
                         fmt.Print(".")
                     } else {
                         fmt.Print(",")
+                    }
+                    lenDot ++
+                    if lenDot > 32 {
+                        fmt.Print("\n")
+                        lenDot = 0
                     }
                 }
                 wg.Add(1)
