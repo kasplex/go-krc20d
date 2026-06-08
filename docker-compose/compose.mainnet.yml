@@ -20,13 +20,14 @@ x-common: &common
 services:
   kaspad:
     <<: *common
-    image: ghcr.io/kasplex/kaspad:1.1.0
+    image: ghcr.io/kasplex/kaspad:2.0.0
     container_name: kaspad
     command:
       - "--utxoindex"
       - "--appdir=/app/data"
       - "--rpclisten=0.0.0.0:16110"
       - "--disable-upnp"
+      - "--yes"
     volumes:
       - ./data-kaspad:/app/data
   krc20d:
