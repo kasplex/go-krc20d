@@ -20,7 +20,7 @@ x-common: &common
 services:
   kaspad:
     <<: *common
-    image: ghcr.io/kasplex/kaspad:2.0.0
+    image: ghcr.io/kasplex/kaspad:2.0.1
     container_name: kaspad
     command:
       - "--testnet"
