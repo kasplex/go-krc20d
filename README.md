@@ -99,6 +99,18 @@ After startup, a separate kaspa node will be deployed simultaneously, and no add
 
 <br>
 
+### Transaction Ordering
+
+Transactions accepted by a VSPC chain block are processed in the following order:
+
+- DAA Score < 110165000: txids sorted in ascending order (KIP-15 adjustment).
+
+- DAA Score >= 110165000: the original VSPC order, i.e. the node's `acceptedTransactionIds` order (selected parent first, then the mergeset in consensus order).
+
+See [sequencer/archive.go#L354](https://github.com/kasplex/go-krc20d/blob/a9754ffd976254263d8e5bdc9ce166691c0dabb5/sequencer/archive.go#L354) and [#1](https://github.com/kasplex/go-krc20d/issues/1#issuecomment-6410749352).
+
+<br>
+
 ### API Reference
 
 https://docs-kasplex.gitbook.io/krc20/public-node-api
